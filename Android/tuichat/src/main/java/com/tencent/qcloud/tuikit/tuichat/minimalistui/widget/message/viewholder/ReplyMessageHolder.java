@@ -10,12 +10,14 @@ import com.tencent.qcloud.tuikit.timcommon.bean.TUIReplyQuoteBean;
 import com.tencent.qcloud.tuikit.timcommon.component.face.FaceManager;
 import com.tencent.qcloud.tuikit.timcommon.minimalistui.widget.message.MessageContentHolder;
 import com.tencent.qcloud.tuikit.timcommon.minimalistui.widget.message.TUIReplyQuoteView;
+import com.tencent.qcloud.tuikit.timcommon.util.TextUtil;
 import com.tencent.qcloud.tuikit.tuichat.R;
 import com.tencent.qcloud.tuikit.tuichat.bean.message.ReplyMessageBean;
 import com.tencent.qcloud.tuikit.tuichat.bean.message.reply.TextReplyQuoteBean;
 import com.tencent.qcloud.tuikit.tuichat.minimalistui.MinimalistUIService;
 import com.tencent.qcloud.tuikit.tuichat.minimalistui.widget.message.reply.TextReplyQuoteView;
 import com.tencent.qcloud.tuikit.tuichat.util.ChatMessageParser;
+
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 
@@ -44,15 +46,30 @@ public class ReplyMessageHolder extends MessageContentHolder {
         timeInLineTextLayout.setTextSize(14);
         timeInLineTextLayout.setTextColor(0xFF000000);
         ReplyMessageBean replyMessageBean = (ReplyMessageBean) msg;
+        String senderName = replyMessageBean.getOriginMsgSender();
+        TUIMessageBean originMessage = replyMessageBean.getOriginMessageBean();
+        if (originMessage != null) {
+            if (originMessage.isRevoked()) {
+                senderNameTv.setVisibility(View.GONE);
+            } else {
+                senderNameTv.setVisibility(View.VISIBLE);
+            }
+            senderName = originMessage.getUserDisplayName();
+        }
+        senderNameTv.setText(senderName + ":");
+        if (replyMessageBean.isAbstractEnable()) {
+            performMsgAbstract(replyMessageBean);
+            quoteFrameLayout.setVisibility(View.VISIBLE);
+        } else {
+            quoteFrameLayout.setVisibility(View.GONE);
+        }
         TUIMessageBean replyContentBean = replyMessageBean.getContentMessageBean();
         String replyContent = replyContentBean.getExtra();
-        String senderName = replyMessageBean.getOriginMsgSender();
-        senderNameTv.setText(senderName + ":");
-
-        performMsgAbstract(replyMessageBean, position);
         if (!TextUtils.isEmpty(replyContent)) {
             FaceManager.handlerEmojiText(timeInLineTextLayout.getTextView(), replyContent, false);
         }
+        TextUtil.linkifyUrls(timeInLineTextLayout.getTextView());
+        setOnTimeInLineTextClickListener(msg);
     }
 
     @Override
@@ -60,12 +77,16 @@ public class ReplyMessageHolder extends MessageContentHolder {
         super.setGravity(isStart);
     }
 
-    private void performMsgAbstract(ReplyMessageBean replyMessageBean, int position) {
+    private void performMsgAbstract(ReplyMessageBean replyMessageBean) {
         TUIMessageBean originMessage = replyMessageBean.getOriginMessageBean();
 
         TUIReplyQuoteBean replyQuoteBean = replyMessageBean.getReplyQuoteBean();
         if (originMessage != null) {
-            performReply(replyQuoteBean, replyMessageBean);
+            if (originMessage.isRevoked()) {
+                performText(replyMessageBean, itemView.getResources().getString(R.string.chat_reply_origin_message_revoked));
+            } else {
+                performReply(replyQuoteBean, replyMessageBean);
+            }
         } else {
             performNotFound(replyQuoteBean, replyMessageBean);
         }
@@ -96,8 +117,12 @@ public class ReplyMessageHolder extends MessageContentHolder {
         if (ChatMessageParser.isFileType(replyQuoteBean.getMessageType())) {
             abstractStr = "";
         }
+        performText(replyMessageBean, typeStr + abstractStr);
+    }
+
+    private void performText(ReplyMessageBean replyMessageBean, String text) {
         TextReplyQuoteBean textReplyQuoteBean = new TextReplyQuoteBean();
-        textReplyQuoteBean.setText(typeStr + abstractStr);
+        textReplyQuoteBean.setText(text);
         TextReplyQuoteView textReplyQuoteView = new TextReplyQuoteView(itemView.getContext());
         textReplyQuoteView.onDrawReplyQuote(textReplyQuoteBean);
         if (isForwardMode || isMessageDetailMode) {

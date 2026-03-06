@@ -1,8 +1,5 @@
 package com.tencent.qcloud.tuikit.timcommon.classicui.widget.message;
 
-import android.animation.Animator;
-import android.animation.ArgbEvaluator;
-import android.animation.ValueAnimator;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
 import android.view.View;
@@ -14,17 +11,16 @@ import android.widget.TextView;
 import androidx.recyclerview.widget.RecyclerView;
 import com.tencent.qcloud.tuikit.timcommon.R;
 import com.tencent.qcloud.tuikit.timcommon.bean.TUIMessageBean;
-import com.tencent.qcloud.tuikit.timcommon.component.MessageProperties;
+import com.tencent.qcloud.tuikit.timcommon.component.highlight.HighlightPresenter;
+import com.tencent.qcloud.tuikit.timcommon.config.classicui.TUIConfigClassic;
+import com.tencent.qcloud.tuikit.timcommon.interfaces.HighlightListener;
 import com.tencent.qcloud.tuikit.timcommon.interfaces.ICommonMessageAdapter;
 import com.tencent.qcloud.tuikit.timcommon.interfaces.OnItemClickListener;
 import com.tencent.qcloud.tuikit.timcommon.util.DateTimeUtil;
 import java.util.Date;
 
 public abstract class MessageBaseHolder<T extends TUIMessageBean> extends RecyclerView.ViewHolder {
-    public static final int MSG_TYPE_HEADER_VIEW = -99;
-
     public ICommonMessageAdapter mAdapter;
-    public MessageProperties properties = MessageProperties.getInstance();
     protected OnItemClickListener onItemClickListener;
 
     public TextView chatTimeText;
@@ -32,19 +28,19 @@ public abstract class MessageBaseHolder<T extends TUIMessageBean> extends Recycl
     public LinearLayout msgReplyDetailLayout;
     public LinearLayout msgArea;
     public LinearLayout msgAreaAndReply;
-    public ChatFlowReactView reactView;
+    public FrameLayout reactionArea;
     public CheckBox mMutiSelectCheckBox;
     public RelativeLayout rightGroupLayout;
     public RelativeLayout mContentLayout;
-
-    private ValueAnimator highLightAnimator;
+    private HighlightListener highlightListener;
+    protected T currentMessageBean;
 
     public MessageBaseHolder(View itemView) {
         super(itemView);
         chatTimeText = itemView.findViewById(R.id.message_top_time_tv);
         msgContentFrame = itemView.findViewById(R.id.msg_content_fl);
         msgReplyDetailLayout = itemView.findViewById(R.id.msg_reply_detail_fl);
-        reactView = itemView.findViewById(R.id.reacts_view);
+        reactionArea = itemView.findViewById(R.id.message_reaction_area);
         msgArea = itemView.findViewById(R.id.msg_area);
         msgAreaAndReply = itemView.findViewById(R.id.msg_area_and_reply);
         mMutiSelectCheckBox = itemView.findViewById(R.id.select_checkbox);
@@ -80,15 +76,9 @@ public abstract class MessageBaseHolder<T extends TUIMessageBean> extends Recycl
     }
 
     public void layoutViews(final T msg, final int position) {
-        if (properties.getChatTimeBubble() != null) {
-            chatTimeText.setBackground(properties.getChatTimeBubble());
-        }
-        if (properties.getChatTimeFontColor() != 0) {
-            chatTimeText.setTextColor(properties.getChatTimeFontColor());
-        }
-        if (properties.getChatTimeFontSize() != 0) {
-            chatTimeText.setTextSize(properties.getChatTimeFontSize());
-        }
+        currentMessageBean = msg;
+        registerHighlightListener(msg.getId());
+        setChatTimeStyle();
 
         if (position > 1) {
             TUIMessageBean last = mAdapter.getItem(position - 1);
@@ -106,67 +96,73 @@ public abstract class MessageBaseHolder<T extends TUIMessageBean> extends Recycl
         }
     }
 
+    private void setChatTimeStyle() {
+        Drawable chatTimeBubble = TUIConfigClassic.getChatTimeBubble();
+        if (chatTimeBubble != null) {
+            chatTimeText.setBackground(chatTimeBubble);
+        }
+        int chatTimeFontColor = TUIConfigClassic.getChatTimeFontColor();
+        if (chatTimeFontColor != TUIConfigClassic.UNDEFINED) {
+            chatTimeText.setTextColor(chatTimeFontColor);
+        }
+        int chatTimeFontSize = TUIConfigClassic.getChatTimeFontSize();
+        if (chatTimeFontSize != TUIConfigClassic.UNDEFINED) {
+            chatTimeText.setTextSize(chatTimeFontSize);
+        }
+    }
+
+    private void registerHighlightListener(String msgID) {
+        if (highlightListener == null) {
+            highlightListener = new HighlightListener() {
+                @Override
+                public void onHighlightStart() {}
+
+                @Override
+                public void onHighlightEnd() {
+                    clearHighLightBackground();
+                }
+
+                @Override
+                public void onHighlightUpdate(int color) {
+                    setHighLightBackground(color);
+                }
+            };
+        }
+        HighlightPresenter.registerHighlightListener(msgID, highlightListener);
+    }
+
+    public void onRecycled() {
+        if (currentMessageBean != null) {
+            HighlightPresenter.unregisterHighlightListener(currentMessageBean.getId());
+        }
+    }
+
     public void setMessageBubbleZeroPadding() {
+        if (msgArea == null) {
+            return;
+        }
         msgArea.setPaddingRelative(0, 0, 0, 0);
     }
 
     public void setMessageBubbleBackground(int resID) {
+        if (msgArea == null) {
+            return;
+        }
         msgArea.setBackgroundResource(resID);
     }
 
     public void setMessageBubbleBackground(Drawable drawable) {
+        if (msgArea == null) {
+            return;
+        }
         msgArea.setBackground(drawable);
     }
 
     public Drawable getMessageBubbleBackground() {
+        if (msgArea == null) {
+            return null;
+        }
         return msgArea.getBackground();
-    }
-
-    public void stopHighLight() {
-        if (highLightAnimator != null) {
-            highLightAnimator.cancel();
-        }
-        clearHighLightBackground();
-    }
-
-    public void startHighLight() {
-        int highLightColorDark = itemView.getResources().getColor(com.tencent.qcloud.tuikit.timcommon.R.color.chat_message_bubble_high_light_dark_color);
-        int highLightColorLight = itemView.getResources().getColor(com.tencent.qcloud.tuikit.timcommon.R.color.chat_message_bubble_high_light_light_color);
-
-        if (highLightAnimator == null) {
-            highLightAnimator = new ValueAnimator();
-            highLightAnimator.setIntValues(highLightColorDark, highLightColorLight);
-            highLightAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
-                @Override
-                public void onAnimationUpdate(ValueAnimator animation) {
-                    Integer color = (Integer) animation.getAnimatedValue();
-                    setHighLightBackground(color);
-                }
-            });
-            highLightAnimator.addListener(new Animator.AnimatorListener() {
-                @Override
-                public void onAnimationStart(Animator animation) {}
-
-                @Override
-                public void onAnimationEnd(Animator animation) {
-                    clearHighLightBackground();
-                }
-
-                @Override
-                public void onAnimationCancel(Animator animation) {
-                    clearHighLightBackground();
-                }
-
-                @Override
-                public void onAnimationRepeat(Animator animation) {}
-            });
-            ArgbEvaluator argbEvaluator = new ArgbEvaluator();
-            highLightAnimator.setEvaluator(argbEvaluator);
-            highLightAnimator.setRepeatCount(3);
-            highLightAnimator.setDuration(250);
-            highLightAnimator.setRepeatMode(ValueAnimator.REVERSE);
-        }
-        highLightAnimator.start();
     }
 
     public void setHighLightBackground(int color) {

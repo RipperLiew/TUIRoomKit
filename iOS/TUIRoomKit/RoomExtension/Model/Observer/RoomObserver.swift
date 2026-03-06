@@ -2,11 +2,10 @@
 //  RoomObserver.swift
 //  TUIRoomKit
 //
-//  Created by 唐佳宁 on 2023/7/3.
-//  监听TUIRoomEngine，并且处理回调
+//  Created by janejntang on 2023/7/3.
 
 import Foundation
-import TUIRoomEngine
+import RTCRoomEngine
 import TUICore
 
 @objc public protocol RoomObserverListener {
@@ -18,7 +17,7 @@ class RoomObserver: NSObject {
     var messageModel = RoomMessageModel()
     private let messageManager = RoomMessageManager.shared
     var engineManager: EngineManager {
-        EngineManager.createInstance()
+        EngineManager.shared
     }
     var roomEngine: TUIRoomEngine {
         engineManager.roomEngine
@@ -27,15 +26,15 @@ class RoomObserver: NSObject {
         return messageModel.userList
     }()
     private lazy var userId: String = {
-        return TUILogin.getUserID() ?? EngineManager.createInstance().store.currentUser.userId
+        return TUILogin.getUserID() ?? EngineManager.shared.store.currentUser.userId
     }()
     typealias Weak<T> = () -> T?
     private var listenerArray: [Weak<RoomObserverListener>] = []
     override init() {
         super.init()
-        EngineEventCenter.shared.subscribeUIEvent(key: .TUIRoomKitService_DestroyedRoom, responder: self)
-        EngineEventCenter.shared.subscribeUIEvent(key: .TUIRoomKitService_ExitedRoom, responder: self)
         EngineEventCenter.shared.subscribeUIEvent(key: .TUIRoomKitService_RoomOwnerChanged, responder: self)
+        EngineEventCenter.shared.subscribeEngine(event: .onExitedRoom, observer: self)
+        EngineEventCenter.shared.subscribeEngine(event: .onDestroyedRoom, observer: self)
     }
     
     func registerObserver() {
@@ -79,18 +78,14 @@ class RoomObserver: NSObject {
     
     func enteredRoom() {
         TUILogin.setCurrentBusinessScene(.InMeetingRoom)
-        if messageModel.owner != userId {
-            getUserList(nextSequence: 0)
-        }
+        getUserList(nextSequence: 0)
     }
     
     func exitedRoom() {
         RoomVideoFloatView.dismiss()
-        userList = userList.filter { userDic in
-            if let userId = userDic["userId"] as? String, userId != userId {
-                return true
-            }
-            return false
+        userList = userList.filter { [weak self] userDic in
+            guard let self = self, let userId = userDic["userId"] as? String else { return false }
+            return userId != self.userId
         }
         if messageModel.owner == userId {
             let prefixUserList = Array(userList.prefix(5))
@@ -116,9 +111,9 @@ class RoomObserver: NSObject {
     }
     
     deinit {
-        EngineEventCenter.shared.unsubscribeUIEvent(key: .TUIRoomKitService_ExitedRoom, responder: self)
-        EngineEventCenter.shared.unsubscribeUIEvent(key: .TUIRoomKitService_DestroyedRoom, responder: self)
         EngineEventCenter.shared.unsubscribeUIEvent(key: .TUIRoomKitService_RoomOwnerChanged, responder: self)
+        EngineEventCenter.shared.unsubscribeEngine(event: .onExitedRoom, observer: self)
+        EngineEventCenter.shared.unsubscribeEngine(event: .onDestroyedRoom, observer: self)
         debugPrint("deinit \(self)")
     }
 }
@@ -144,6 +139,18 @@ extension RoomObserver: TUIRoomObserver {
             let prefixUserList = Array(userList.prefix(5))
             messageManager.resendRoomMessage(message: messageModel, dic: ["memberCount":userList.count,"userList":prefixUserList])
         }
+    }
+    
+    func onRoomDismissed(roomId: String, reason: TUIRoomDismissedReason) {
+        RoomVideoFloatView.dismiss()
+        messageManager.isReadyToSendMessage = true
+        refreshSource()
+    }
+    
+    func onKickedOutOfRoom(roomId: String, reason: TUIKickedOutOfRoomReason, message: String) {
+        RoomVideoFloatView.dismiss()
+        messageManager.isReadyToSendMessage = true
+        refreshSource()
     }
 }
 
@@ -182,13 +189,21 @@ extension RoomObserver {
 extension RoomObserver: RoomKitUIEventResponder {
     func onNotifyUIEvent(key: EngineEventCenter.RoomUIEvent, Object: Any?, info: [AnyHashable : Any]?) {
         switch key {
-        case .TUIRoomKitService_DestroyedRoom:
-            self.destroyedRoom()
-        case .TUIRoomKitService_ExitedRoom:
-            self.exitedRoom()
         case .TUIRoomKitService_RoomOwnerChanged:
-            guard let userId = info?["userId"] as? String else { return }
+            guard let userId = info?["owner"] as? String else { return }
             messageManager.resendRoomMessage(message: messageModel, dic: ["owner": userId])
+        default: break
+        }
+    }
+}
+
+extension RoomObserver: RoomEngineEventResponder {
+    func onEngineEvent(name: EngineEventCenter.RoomEngineEvent, param: [String : Any]?) {
+        switch name {
+        case .onExitedRoom:
+            exitedRoom()
+        case .onDestroyedRoom:
+            destroyedRoom()
         default: break
         }
     }

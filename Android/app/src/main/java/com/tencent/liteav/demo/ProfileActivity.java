@@ -17,15 +17,17 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.tencent.cloud.tuikit.roomkit.TUIRoomKit;
-import com.tencent.cloud.tuikit.roomkit.utils.ImageLoader;
-import com.tencent.cloud.tuikit.roomkit.utils.UserModel;
-import com.tencent.cloud.tuikit.roomkit.utils.UserModelManager;
+import com.tencent.cloud.tuikit.engine.common.TUICommonDefine;
+import com.tencent.cloud.tuikit.engine.room.TUIRoomDefine;
+import com.tencent.cloud.tuikit.engine.room.TUIRoomEngine;
+import com.tencent.cloud.tuikit.roomkit.common.utils.ImageLoader;
+import com.tencent.cloud.tuikit.roomkit.view.basic.RoomToast;
+import com.tencent.cloud.tuikit.roomkit.common.utils.UserModel;
+import com.tencent.cloud.tuikit.roomkit.common.utils.UserModelManager;
 import com.tencent.liteav.debug.GenerateTestUserSig;
 import com.tencent.qcloud.tuicore.TUICore;
 import com.tencent.qcloud.tuicore.TUILogin;
 import com.tencent.qcloud.tuicore.interfaces.TUICallback;
-import com.tencent.qcloud.tuicore.util.ToastUtil;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Random;
@@ -112,7 +114,7 @@ public class ProfileActivity extends AppCompatActivity {
     private void setProfile() {
         final String userName = mEditUserName.getText().toString().trim();
         if (TextUtils.isEmpty(userName)) {
-            ToastUtil.toastLongMessage(getString(R.string.app_hint_user_name));
+            RoomToast.toastLongMessage(getString(R.string.app_hint_user_name));
             return;
         }
         String reg = "^[a-z0-9A-Z\\u4e00-\\u9fa5\\_]*$";
@@ -120,11 +122,11 @@ public class ProfileActivity extends AppCompatActivity {
             mTvInputTips.setTextColor(getResources().getColor(R.color.color_input_no_match));
             return;
         }
-        if(userName.getBytes(StandardCharsets.UTF_8).length > 30) {
-            ToastUtil.toastLongMessage(getString(R.string.app_toast_username_too_long));
+        if (userName.getBytes(StandardCharsets.UTF_8).length > 30) {
+            RoomToast.toastLongMessage(getString(R.string.app_toast_username_too_long));
             return;
         } else if (userName.getBytes(StandardCharsets.UTF_8).length < 2) {
-            ToastUtil.toastLongMessage(getString(R.string.app_toast_username_too_short));
+            RoomToast.toastLongMessage(getString(R.string.app_toast_username_too_short));
             return;
         }
         mTvInputTips.setTextColor(getResources().getColor(R.color.text_color_hint));
@@ -133,13 +135,13 @@ public class ProfileActivity extends AppCompatActivity {
         model.userAvatar = mAvatarUrl;
         UserModelManager.getInstance().setUserModel(model);
         Log.i(TAG, "set profile success.");
-        ToastUtil.toastLongMessage(getString(R.string.app_toast_register_success_and_logging_in));
-        startPrepareActivity();
+        RoomToast.toastLongMessage(getString(R.string.app_toast_register_success_and_logging_in));
+        startConferenceOptionsActivity();
     }
 
-    private void startPrepareActivity() {
+    private void startConferenceOptionsActivity() {
         final UserModel userModel = UserModelManager.getInstance().getUserModel();
-        int sdkAppId = GenerateTestUserSig.SDKAPPID;
+        int sdkAppId = GenerateTestUserSig.SDKAppID;
         String userId = userModel.userId;
         String userSig = GenerateTestUserSig.genTestUserSig(userModel.userId);
         Log.d(TAG, "TUILogin.login sdkAppId=" + sdkAppId + " userId=" + userId + " userSig=" + !TextUtils.isEmpty(
@@ -149,9 +151,19 @@ public class ProfileActivity extends AppCompatActivity {
             public void onSuccess() {
                 Log.d(TAG, "TUILogin.login onSuccess");
                 String userName = TextUtils.isEmpty(userModel.userName) ? userModel.userId : userModel.userName;
-                TUIRoomKit.createInstance().setSelfInfo(userName, userModel.userAvatar, null);
-                TUICore.startActivity("PrepareActivity", null);
-                finish();
+                TUIRoomEngine.setSelfInfo(userName, userModel.userAvatar, new TUIRoomDefine.ActionCallback() {
+                    @Override
+                    public void onSuccess() {
+                        TUICore.startActivity("ConferenceOptionsActivity", null);
+                        finish();
+                    }
+
+                    @Override
+                    public void onError(TUICommonDefine.Error error, String message) {
+                        Log.d(TAG, "setSelfInfo onError error=" + error + " message=" + message);
+                        UserModelManager.getInstance().clearUserModel();
+                    }
+                });
             }
 
             @Override

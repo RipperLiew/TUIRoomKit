@@ -2,9 +2,8 @@
 //  MediaSettingView.swift
 //  TUIRoomKit
 //
-//  Created by 唐佳宁 on 2023/1/16.
+//  Created by janejntang on 2023/1/16.
 //  Copyright © 2023 Tencent. All rights reserved.
-//  设置页面
 //
 
 import Foundation
@@ -39,6 +38,7 @@ class MediaSettingView: UIView {
         constructViewHierarchy()
         activateConstraints()
         bindInteraction()
+        reportViewShow()
     }
     
     private func constructViewHierarchy() {
@@ -57,6 +57,10 @@ class MediaSettingView: UIView {
         viewModel.viewResponder = self
     }
     
+    private func reportViewShow() {
+        viewModel.reportSettingsPanelShow()
+    }
+    
     deinit {
         debugPrint("deinit \(self)")
     }
@@ -68,6 +72,8 @@ extension MediaSettingView: UITableViewDataSource {
             return viewModel.videoItems.count
         } else if section == 1 {
             return viewModel.audioItems.count
+        } else if section == 2 {
+            return viewModel.otherItems.count
         } else {
             return 0
         }
@@ -86,6 +92,8 @@ extension MediaSettingView: UITableViewDelegate {
             itemData = viewModel.videoItems[indexPath.row]
         } else if indexPath.section == 1 {
             itemData = viewModel.audioItems[indexPath.row]
+        } else if indexPath.section == 2 {
+            itemData = viewModel.otherItems[indexPath.row]
         }
         let cell = MediaSettingViewCell(itemData: itemData)
         cell.selectionStyle = .none
@@ -96,33 +104,31 @@ extension MediaSettingView: UITableViewDelegate {
         return 55.scale375()
     }
     
-    func tableView(_ tableView: UITableView, willDisplayHeaderView view: UIView, forSection section: Int) {
-        guard let view = view as? UITableViewHeaderFooterView else { return }
-        view.textLabel?.textColor = UIColor(0xD8D8D8)
-        view.textLabel?.font = UIFont.systemFont(ofSize: 14, weight: .regular)
-        view.textLabel?.textAlignment = isRTL ? .right : .left
+    func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+        let headerLabel = UILabel()
+        headerLabel.font = UIFont.systemFont(ofSize: 14, weight: .regular)
+        headerLabel.textColor = UIColor(0xD8D8D8)
+        headerLabel.textAlignment = isRTL ? .right : .left
+        headerLabel.text = viewModel.topItems[safe: section]
+        return headerLabel
     }
     
     func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-        if indexPath.row == 0 {
+        let rows = tableView.numberOfRows(inSection: indexPath.section)
+        if indexPath.row == 0 || indexPath.row == rows - 1 {
+            var corner = UIRectCorner()
+            if rows == 1 {
+                corner = .allCorners
+            } else if indexPath.row == 0 {
+                corner = [.topLeft, .topRight]
+            } else if indexPath.row == rows - 1 {
+                corner = [.bottomLeft, .bottomRight]
+            }
             cell.roundedRect(rect: cell.bounds,
-                             byRoundingCorners: [.topLeft, .topRight],
-                             cornerRadii: CGSize(width: 12, height: 12))
-        } else if indexPath.section == 0, indexPath.row == (viewModel.videoItems.count-1) {
-            cell.roundedRect(rect: cell.bounds,
-                             byRoundingCorners: [.bottomLeft, .bottomRight],
-                             cornerRadii: CGSize(width: 12, height: 12))
-        } else if indexPath.section == 1, indexPath.row == (viewModel.audioItems.count-1) {
-            cell.roundedRect(rect: cell.bounds,
-                             byRoundingCorners: [.bottomLeft, .bottomRight],
+                             byRoundingCorners: corner,
                              cornerRadii: CGSize(width: 12, height: 12))
         }
     }
-    
-    func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        return viewModel.topItems[safe: section]
-    }
-    
 }
 
 extension MediaSettingView: MediaSettingViewEventResponder {
@@ -148,6 +154,11 @@ extension MediaSettingView: MediaSettingViewEventResponder {
             self.viewModel.changeResolutionAction(index: index)
         }
         resolutionAlert.show(rootView: self)
+    }
+    
+    func showQualityView() {
+       let qualityInfoPanel = QualityInfoPanel()
+        qualityInfoPanel.show(rootView: self)
     }
     
     func updateStackView(item: ListCellItemData) {
@@ -214,10 +225,10 @@ class MediaSettingViewCell: UITableViewCell {
 
 private extension String {
     static var resolutionText: String {
-        localized("TUIRoom.resolution")
+        localized("Resolution")
     }
     static var frameRateText: String {
-        localized("TUIRoom.frame.rate")
+        localized("Frame Rate")
     }
 }
 

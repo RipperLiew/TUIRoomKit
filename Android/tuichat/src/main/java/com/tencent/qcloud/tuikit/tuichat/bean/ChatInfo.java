@@ -16,26 +16,26 @@ public class ChatInfo implements Serializable {
     private static List<V2TIMGroupAtInfo> atInfoList;
 
     protected String chatName;
-    // other's face url
     protected String faceUrl;
     private List<Object> iconUrlList = new ArrayList<>();
-    private int type = V2TIMConversation.V2TIM_C2C;
+    private int type;
     private String id;
-    private String groupType;
     private boolean isTopChat;
     private TUIMessageBean locateMessage;
     boolean enableAudioCall = true;
     boolean enableVideoCall = true;
     boolean enableRoom = true;
     boolean enableCustomHelloMessage = true;
+    boolean enablePoll = true;
+    boolean enableGroupNote = true;
+    private boolean enableTakePhoto = true;
+    private boolean enableRecordVideo = true;
+    private boolean enableFile = true;
+    private boolean enableAlbum = true;
     boolean needReadReceipt = true;
     private DraftInfo draft;
 
-
-    public ChatInfo() {}
-
     /**
-     * 获取聊天的标题，单聊一般为对方名称，群聊为群名字
      *
      * Get the title of the chat, usually the name of the other party for a single chat, and the group name for a group chat
      *
@@ -54,7 +54,6 @@ public class ChatInfo implements Serializable {
     }
 
     /**
-     * 设置聊天的标题，单聊一般为对方名称，群聊为群名字
      *
      * Set the title of the chat, usually the name of the other party for a single chat, and the group name for a group chat
      *
@@ -65,7 +64,6 @@ public class ChatInfo implements Serializable {
     }
 
     /**
-     * 获取聊天类型，C2C为单聊，Group为群聊
      *
      * Get the chat type, C2C is a single chat, Group is a group chat
      *
@@ -76,7 +74,6 @@ public class ChatInfo implements Serializable {
     }
 
     /**
-     * 设置聊天类型，C2C为单聊，Group为群聊
      *
      * Set the chat type, C2C is a single chat, Group is a group chat
      *
@@ -87,7 +84,6 @@ public class ChatInfo implements Serializable {
     }
 
     /**
-     * 获取聊天唯一标识
      *
      * get chat id
      *
@@ -98,7 +94,6 @@ public class ChatInfo implements Serializable {
     }
 
     /**
-     * 设置聊天唯一标识
      *
      * set chat id
      *
@@ -109,25 +104,6 @@ public class ChatInfo implements Serializable {
     }
 
     /**
-     * 获取群组类型
-     *
-     * get group type
-     */
-    public String getGroupType() {
-        return groupType;
-    }
-
-    /**
-     * 设置群组类型
-     *
-     * set group type
-     */
-    public void setGroupType(String groupType) {
-        this.groupType = groupType;
-    }
-
-    /**
-     * 是否为置顶的会话
      *
      * Is it a pinned conversation
      *
@@ -138,7 +114,6 @@ public class ChatInfo implements Serializable {
     }
 
     /**
-     * 设置会话是否置顶
      *
      * Set whether the conversation is sticky
      *
@@ -210,6 +185,54 @@ public class ChatInfo implements Serializable {
 
     public void setEnableCustomHelloMessage(boolean enableCustomHelloMessage) {
         this.enableCustomHelloMessage = enableCustomHelloMessage;
+    }
+
+    public void setEnablePoll(boolean enablePoll) {
+        this.enablePoll = enablePoll;
+    }
+
+    public boolean isEnablePoll() {
+        return enablePoll;
+    }
+
+    public void setEnableGroupNote(boolean enableGroupNote) {
+        this.enableGroupNote = enableGroupNote;
+    }
+
+    public boolean isEnableGroupNote() {
+        return enableGroupNote;
+    }
+
+    public void setEnableRecordVideo(boolean enableRecordVideo) {
+        this.enableRecordVideo = enableRecordVideo;
+    }
+
+    public boolean isEnableRecordVideo() {
+        return enableRecordVideo;
+    }
+
+    public void setEnableTakePhoto(boolean enableTakePhoto) {
+        this.enableTakePhoto = enableTakePhoto;
+    }
+
+    public boolean isEnableTakePhoto() {
+        return enableTakePhoto;
+    }
+
+    public void setEnableAlbum(boolean enableAlbum) {
+        this.enableAlbum = enableAlbum;
+    }
+
+    public boolean isEnableAlbum() {
+        return enableAlbum;
+    }
+
+    public void setEnableFile(boolean enableFile) {
+        this.enableFile = enableFile;
+    }
+
+    public boolean isEnableFile() {
+        return enableFile;
     }
 
     public boolean isNeedReadReceipt() {

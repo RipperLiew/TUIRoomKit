@@ -8,7 +8,7 @@
 
 import SnapKit
 import UIKit
-import TUIRoomEngine
+import RTCRoomEngine
 import TUIRoomKit
 import TUICore
 
@@ -20,7 +20,6 @@ class CreateRoomViewController: UIViewController {
     private let currentUserName: String = TUILogin.getNickName() ?? ""
     private let currentUserId: String = TUILogin.getUserID() ?? ""
     private let roomInfo: TUIRoomInfo = TUIRoomInfo()
-    private let roomKit: TUIRoomKit = TUIRoomKit.createInstance()
     private var enableLocalAudio: Bool = true
     private var enableLocalVideo: Bool = true
     private var isSoundOnSpeaker: Bool = true
@@ -58,12 +57,16 @@ class CreateRoomViewController: UIViewController {
         self.rootView = rootView
     }
     
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        ConferenceSession.sharedInstance.addObserver(observer: self)
+    }
+    
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         navigationController?.setNavigationBarHidden(false, animated: false)
         navigationItem.leftBarButtonItem = UIBarButtonItem(customView: backButton)
         UIApplication.shared.isIdleTimerDisabled = false
-        renewRootViewState()
         setupRoomId()
     }
     
@@ -73,6 +76,7 @@ class CreateRoomViewController: UIViewController {
     }
     
     deinit {
+        ConferenceSession.sharedInstance.removeObserver(observer: self)
         debugPrint("deinit \(self)")
     }
 }
@@ -129,39 +133,22 @@ extension CreateRoomViewController {
     }
     
     func enterButtonClick(sender: UIButton) {
-        rootView?.updateEnterButtonState(isEnabled: false)
-        rootView?.updateLoadingState(isStarted: true)
         guard let roomId = self.roomId else {
             self.view.makeToast(.generatingRoomIdText)
-            self.renewRootViewState()
             return
         }
-        roomInfo.roomId = roomId
-        roomInfo.name = currentUserName.truncateUtf8String(maxByteLength: 30)
-        roomInfo.isSeatEnabled = isSeatEnable
-        roomInfo.seatMode = .applyToTake
-        roomInfo.roomType = .conference
-        roomKit.createRoom(roomInfo: roomInfo) { [weak self] in
-            guard let self = self else { return }
-            self.roomKit.enterRoom(roomId: self.roomInfo.roomId, enableAudio: self.enableLocalAudio, enableVideo:
-                                    self.enableLocalVideo, isSoundOnSpeaker: self.isSoundOnSpeaker) { [weak self] in
-                guard let self = self else { return }
-                self.renewRootViewState()
-            } onError: { [weak self] code, message in
-                guard let self = self else { return }
-                self.renewRootViewState()
-                self.rootView?.makeToast(message)
-            }
-        } onError: { [weak self] code, message in
-            guard let self = self else { return }
-            self.renewRootViewState()
-            self.rootView?.makeToast(message)
-        }
+        quickStartConference(roomId: roomId)
     }
     
-    private func renewRootViewState() {
-        rootView?.updateEnterButtonState(isEnabled: true)
-        rootView?.updateLoadingState(isStarted: false)
+    private func quickStartConference(roomId: String) {
+        let vc = ConferenceMainViewController()
+        let params = StartConferenceParams(roomId: roomId)
+        params.isSeatEnabled = isSeatEnable
+        params.isOpenMicrophone = enableLocalAudio
+        params.isOpenCamera = enableLocalVideo
+        params.isOpenSpeaker = isSoundOnSpeaker
+        vc.setStartConferenceParams(params: params)
+        navigationController?.pushViewController(vc, animated: true)
     }
     
     func switchRoomTypeClick() {
@@ -199,7 +186,6 @@ extension CreateRoomViewController {
         }
     }
     
-    //获取随机数roomId，numberOfDigits为位数
     private func getRandomRoomId(numberOfDigits: Int) -> String {
         var numberOfDigit = numberOfDigits > 0 ? numberOfDigits : 1
         numberOfDigit = numberOfDigit < 10 ? numberOfDigit : 9
@@ -222,33 +208,47 @@ extension CreateRoomViewController {
     }
 }
 
+extension CreateRoomViewController: ConferenceObserver {
+    func onConferenceStarted(roomInfo: TUIRoomInfo, error: TUIError, message: String) {
+        guard error != .success else { return }
+        navigationController?.popViewController(animated: true)
+        guard !message.isEmpty else { return }
+        SceneDelegate.getCurrentWindow()?.makeToast(message, duration: 1, position:TUICSToastPositionCenter)
+    }
+    
+    func onConferenceFinished(roomInfo: TUIRoomInfo, reason: ConferenceFinishedReason) {
+        debugPrint("onConferenceFinished")
+    }
+    
+    func onConferenceExited(roomInfo: TUIRoomInfo, reason: ConferenceExitedReason) {
+        debugPrint("onConferenceExited")
+    }
+}
+
 private extension String {
     static var userNameText: String {
-        RoomDemoLocalize("Demo.TUIRoomKit.user.name")
+        RoomDemoLocalize("Your Name")
     }
     static var roomTypeText: String {
-        RoomDemoLocalize("Demo.TUIRoomKit.room.type")
+        RoomDemoLocalize("Conference Type")
     }
     static var openCameraText: String {
-        RoomDemoLocalize("Demo.TUIRoomKit.open.video")
+        RoomDemoLocalize("Video")
     }
     static var openMicText: String {
-        RoomDemoLocalize("Demo.TUIRoomKit.open.mic")
+        RoomDemoLocalize("Mic")
     }
     static var openSpeakerText: String {
-        RoomDemoLocalize("Demo.TUIRoomKit.open.speaker")
+        RoomDemoLocalize("Speaker")
     }
     static var freedomSpeakText: String {
-        RoomDemoLocalize("Demo.TUIRoomKit.freedom.speaker")
+        RoomDemoLocalize("Free Speech Conference")
     }
     static var raiseHandSpeakText: String {
-        RoomDemoLocalize("Demo.TUIRoomKit.raise.speaker")
-    }
-    static var videoConferenceText: String {
-        RoomDemoLocalize("Demo.TUIRoomKit.video.conference")
+        RoomDemoLocalize("On-stage Speech Conference")
     }
     static var generatingRoomIdText: String {
-        RoomDemoLocalize("Demo.TUIRoomKit.generating.roomId")
+        RoomDemoLocalize("Generating room number, please try again later")
     }
     func truncateUtf8String(maxByteLength: Int) -> String {
         let length = self.utf8.count

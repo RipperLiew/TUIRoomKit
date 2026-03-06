@@ -1,29 +1,31 @@
 <template>
-  <!--
-      *User base information
-      *
-      *用户基础信息
-    -->
+  <!-- User base information -->
   <div :class="[isMobile ? 'member-info-mobile' : 'member-info']">
-    <!-- 用户基础信息 -->
-    <div :class="!showStateIcon && isTargetUserAdmin ? 'member-basic-info-admin' : 'member-basic-info'">
-      <Avatar class="avatar-url" :img-src="userInfo.avatarUrl"></Avatar>
-      <div class="user-name">{{ userInfo.userName || userInfo.userId }}</div>
+    <div
+      :class="
+        !showStateIcon && isTargetUserAdmin
+          ? 'member-basic-info-admin'
+          : 'member-basic-info'
+      "
+    >
+      <Avatar class="avatar-url" :img-src="userInfo.avatarUrl" />
+      <div class="user-name">{{ roomService.getDisplayName(userInfo) }}</div>
       <div class="role-info">
         <svg-icon
           style="display: flex"
           v-if="isTargetUserRoomOwner || isTargetUserAdmin"
           :icon="UserIcon"
+          :color="isTargetUserAdmin ? '#F06C4B' : '#4791FF'"
           :class="isTargetUserAdmin ? 'admin-icon' : 'master-icon'"
         />
-        <div :class="`user-extra-info ${isTargetUserAdmin ? 'user-extra-info-admin' : ''}`">{{ extraInfo }}</div>
+        <div
+          :class="`user-extra-info ${isTargetUserAdmin ? 'user-extra-info-admin' : ''}`"
+        >
+          {{ extraInfo }}
+        </div>
       </div>
     </div>
-    <!--
-      *User audio and video status information
-      *
-      *用户音视频状态信息
-    -->
+    <!-- User audio and video status information -->
     <div v-if="showStateIcon" class="member-av-state">
       <svg-icon
         style="display: flex"
@@ -34,10 +36,15 @@
         :size="item.size"
       />
     </div>
+    <member-invite
+      class="member-invite"
+      v-show="!props.userInfo.isInRoom"
+      :user-info="props.userInfo"
+    />
   </div>
 </template>
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, defineProps } from 'vue';
 import Avatar from '../../common/Avatar.vue';
 import { useBasicStore } from '../../../stores/basic';
 import { UserInfo, useRoomStore } from '../../../stores/room';
@@ -49,16 +56,18 @@ import AudioOpenIcon from '../../../assets/icons/AudioOpenIcon.svg';
 import AudioCloseIcon from '../../../assets/icons/AudioCloseIcon.svg';
 import ScreenOpenIcon from '../../../assets/icons/ScreenOpenIcon.svg';
 import ApplyActiveIcon from '../../../assets/icons/ApplyActiveIcon.svg';
+import MemberInvite from '../MemberInvite/MemberInvite.vue';
 import { useI18n } from '../../../locales';
 import { isMobile } from '../../../utils/environment';
 import UserIcon from '../../../assets/icons/UserIcon.svg';
 import { TUIRole } from '@tencentcloud/tuiroom-engine-wx';
+import { roomService } from '../../../services';
 
 const { t } = useI18n();
 
 interface Props {
-  userInfo: UserInfo,
-  showStateIcon: Boolean,
+  userInfo: UserInfo;
+  showStateIcon: boolean;
 }
 
 const props = defineProps<Props>();
@@ -68,8 +77,12 @@ const { isMaster, isSpeakAfterTakingSeatMode } = storeToRefs(roomStore);
 
 const isMe = computed(() => basicStore.userId === props.userInfo.userId);
 
-const isTargetUserRoomOwner = computed(() => props.userInfo.userRole === TUIRole.kRoomOwner);
-const isTargetUserAdmin = computed(() => props.userInfo.userRole === TUIRole.kAdministrator);
+const isTargetUserRoomOwner = computed(
+  () => props.userInfo.userRole === TUIRole.kRoomOwner
+);
+const isTargetUserAdmin = computed(
+  () => props.userInfo.userRole === TUIRole.kAdministrator
+);
 
 const extraInfo = computed(() => {
   if (isMaster.value && isMe.value) {
@@ -90,7 +103,9 @@ const extraInfo = computed(() => {
   return '';
 });
 
-const isAudienceRole = computed(() => isSpeakAfterTakingSeatMode.value && !props.userInfo.onSeat);
+const isAudienceRole = computed(
+  () => isSpeakAfterTakingSeatMode.value && !props.userInfo.onSeat
+);
 
 const iconList = computed(() => {
   const list = [];
@@ -98,8 +113,12 @@ const iconList = computed(() => {
     list.push({ icon: ScreenOpenIcon });
   }
   if (!isAudienceRole.value) {
-    list.push({ icon: props.userInfo.hasAudioStream ? AudioOpenIcon : AudioCloseIcon });
-    list.push({ icon: props.userInfo.hasVideoStream ? VideoOpenIcon : VideoCloseIcon });
+    list.push({
+      icon: props.userInfo.hasAudioStream ? AudioOpenIcon : AudioCloseIcon,
+    });
+    list.push({
+      icon: props.userInfo.hasVideoStream ? VideoOpenIcon : VideoCloseIcon,
+    });
   }
   if (isAudienceRole.value && !props.userInfo.isUserApplyingToAnchor) {
     list.push({ icon: AudioCloseIcon, disable: true });
@@ -113,67 +132,67 @@ const iconList = computed(() => {
 </script>
 
 <style lang="scss" scoped>
-
-.tui-theme-black .member-av-state {
-  --icon-color: #A3AEC7;
-}
-
-.tui-theme-white .member-av-state {
-  --icon-color: #B2BBD1;
-}
 .member-info,
 .member-info-mobile {
   display: flex;
+  justify-content: space-between;
   width: 100%;
   height: 100%;
-  justify-content: space-between;
-  .member-basic-info
-  ,.member-basic-info-admin {
+
+  .member-basic-info,
+  .member-basic-info-admin {
     display: flex;
     flex-direction: row;
     align-items: center;
+
     .avatar-url {
+      display: flex;
+      align-items: center;
       width: 32px;
       height: 32px;
-      display: flex;
       border-radius: 50%;
-      align-items: center;
     }
+
     .user-name {
+      max-width: 100px;
       margin-left: 12px;
+      overflow: hidden;
       font-size: 14px;
       font-weight: 400;
-      color: var(--font-color-1);
       line-height: 22px;
-      max-width: 100px;
-      white-space: nowrap;
       text-overflow: ellipsis;
-      overflow: hidden;
+      white-space: nowrap;
+      color: var(--text-color-secondary);
     }
+
     .role-info {
       display: flex;
+
       .master-icon,
       .admin-icon {
-        color: var(--active-color-2);
-        margin-left: 8px;
         display: flex;
+        margin-left: 8px;
+        color: var(--text-color-link);
       }
+
       .admin-icon {
-        color: var(--orange-color);
+        color: var(--text-color-warning);
       }
+
       .user-extra-info,
       .user-extra-info-admin {
-        line-height: 20px;
+        padding: 2px;
+        padding: 0 6px;
+        margin-left: 4px;
         font-size: 14px;
         font-weight: 400;
-        margin-left: 4px;
-        padding: 2px;
-        color: var(--active-color-2);
-        padding: 0 6px;
+        line-height: 20px;
+        color: var(--text-color-link);
       }
+
       .user-extra-info-admin {
         transition: none;
-        color: var(--orange-color);
+        color: var(--text-color-warning);
       }
     }
   }
@@ -184,14 +203,22 @@ const iconList = computed(() => {
     }
   }
 
-  .member-av-state {
-    height: 100%;
+  .member-invite {
     display: flex;
     align-items: center;
-    color: var(--icon-color);
+    height: 100%;
+  }
+
+  .member-av-state {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    color: var(--uikit-color-gray-7);
+
     .state-icon {
       margin-left: 16px;
     }
+
     .disable-icon {
       opacity: 0.4;
     }

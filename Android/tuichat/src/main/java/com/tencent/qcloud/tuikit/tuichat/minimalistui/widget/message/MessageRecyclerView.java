@@ -8,7 +8,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.graphics.Rect;
-import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.Looper;
 import android.text.TextUtils;
@@ -19,23 +18,20 @@ import android.view.View;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityOptionsCompat;
-import androidx.core.view.NestedScrollingChildHelper;
-import androidx.core.view.NestedScrollingParentHelper;
+import androidx.core.app.SharedElementCallback;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.SimpleItemAnimator;
 import com.tencent.qcloud.tuicore.TUIConstants;
 import com.tencent.qcloud.tuicore.TUICore;
-import com.tencent.qcloud.tuicore.TUILogin;
+import com.tencent.qcloud.tuicore.interfaces.TUICallback;
 import com.tencent.qcloud.tuicore.interfaces.TUIExtensionEventListener;
 import com.tencent.qcloud.tuicore.interfaces.TUIExtensionInfo;
 import com.tencent.qcloud.tuicore.util.ToastUtil;
 import com.tencent.qcloud.tuikit.timcommon.bean.TUIMessageBean;
 import com.tencent.qcloud.tuikit.timcommon.component.CustomLinearLayoutManager;
-import com.tencent.qcloud.tuikit.timcommon.component.MessageProperties;
 import com.tencent.qcloud.tuikit.timcommon.component.RoundCornerImageView;
 import com.tencent.qcloud.tuikit.timcommon.component.dialog.TUIKitDialog;
-import com.tencent.qcloud.tuikit.timcommon.component.face.Emoji;
 import com.tencent.qcloud.tuikit.timcommon.component.interfaces.IUIKitCallback;
 import com.tencent.qcloud.tuikit.timcommon.interfaces.OnChatPopActionClickListener;
 import com.tencent.qcloud.tuikit.timcommon.interfaces.OnItemClickListener;
@@ -50,11 +46,15 @@ import com.tencent.qcloud.tuikit.tuichat.bean.message.SoundMessageBean;
 import com.tencent.qcloud.tuikit.tuichat.bean.message.TextMessageBean;
 import com.tencent.qcloud.tuikit.tuichat.bean.message.VideoMessageBean;
 import com.tencent.qcloud.tuikit.tuichat.config.TUIChatConfigs;
+import com.tencent.qcloud.tuikit.tuichat.config.minimalistui.TUIChatConfigMinimalist;
 import com.tencent.qcloud.tuikit.tuichat.interfaces.IMessageRecyclerView;
+import com.tencent.qcloud.tuikit.tuichat.interfaces.OnEmptySpaceClickListener;
+import com.tencent.qcloud.tuikit.tuichat.interfaces.OnGestureScrollListener;
 import com.tencent.qcloud.tuikit.tuichat.minimalistui.interfaces.IMessageLayout;
 import com.tencent.qcloud.tuikit.tuichat.minimalistui.widget.messagepopmenu.ChatPopActivity;
 import com.tencent.qcloud.tuikit.tuichat.minimalistui.widget.messagepopmenu.ChatPopDataHolder;
 import com.tencent.qcloud.tuikit.tuichat.presenter.ChatPresenter;
+import com.tencent.qcloud.tuikit.tuichat.presenter.GroupChatPresenter;
 import com.tencent.qcloud.tuikit.tuichat.util.TUIChatLog;
 import com.tencent.qcloud.tuikit.tuichat.util.TUIChatUtils;
 import java.util.ArrayList;
@@ -68,22 +68,18 @@ import java.util.Set;
 public class MessageRecyclerView extends RecyclerView implements IMessageRecyclerView, IMessageLayout {
     private static final String TAG = MessageRecyclerView.class.getSimpleName();
 
-    // 取一个足够大的偏移保证能一次性滚动到最底部
     // Take a large enough offset to scroll to the bottom at one time
     private static final int SCROLL_TO_END_OFFSET = -999999;
 
     protected OnItemClickListener mOnItemClickListener;
-    protected OnLoadMoreHandler mHandler;
+    protected ChatDelegate chatDelegate;
     protected OnEmptySpaceClickListener mEmptySpaceClickListener;
+    protected OnGestureScrollListener onGestureScrollListener;
     protected MessageAdapter mAdapter;
+    protected LinearLayoutManager linearLayoutManager;
     protected List<ChatPopActivity.ChatPopMenuAction> mPopActions = new ArrayList<>();
-    protected ChatPopActivity.EmojiOnClickListener emojiOnClickListener;
-    private Bitmap dialogBgBitmap;
     protected List<ChatPopActivity.ChatPopMenuAction> mMorePopActions = new ArrayList<>();
     protected OnChatPopActionClickListener mOnPopActionClickListener;
-    private final MessageProperties properties = MessageProperties.getInstance();
-
-    private OnMenuEmojiClickListener menuEmojiOnClickListener;
 
     private ChatPresenter presenter;
 
@@ -112,7 +108,7 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
         setFocusableInTouchMode(false);
         setFocusable(true);
         setClickable(true);
-        LinearLayoutManager linearLayoutManager = new CustomLinearLayoutManager(getContext());
+        linearLayoutManager = new CustomLinearLayoutManager(getContext());
         linearLayoutManager.setOrientation(LinearLayoutManager.VERTICAL);
         setLayoutManager(linearLayoutManager);
         SimpleItemAnimator animator = (SimpleItemAnimator) getItemAnimator();
@@ -121,6 +117,17 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
         }
         setItemAnimator(null);
         setClickEmptySpaceEvent();
+        addOnLayoutChangeListener(new OnLayoutChangeListener() {
+            @Override
+            public void onLayoutChange(View v, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                // When the view above the message list expands, scroll down the corresponding distance.
+                int oldHeight = oldBottom - oldTop;
+                int newHeight = bottom - top;
+                if (oldHeight != 0 && oldHeight > newHeight && oldTop < top) {
+                    scrollBy(0, oldHeight - newHeight);
+                }
+            }
+        });
     }
 
     public void setPresenter(ChatPresenter presenter) {
@@ -137,6 +144,23 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
                 }
                 return false;
             }
+
+            @Override
+            public boolean onDown(MotionEvent e) {
+                if (mEmptySpaceClickListener != null) {
+                    mEmptySpaceClickListener.onClick();
+                    return true;
+                }
+                return false;
+            }
+
+            @Override
+            public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
+                if (onGestureScrollListener != null) {
+                    onGestureScrollListener.onScroll(e1, e2, distanceX, distanceY);
+                }
+                return super.onScroll(e1, e2, distanceX, distanceY);
+            }
         };
 
         GestureDetector gestureDetector = new GestureDetector(getContext(), gestureListener);
@@ -149,6 +173,16 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
                 return false;
             }
         });
+    }
+
+    // Always return last visible item for laying out other items from tail to head.
+    @Override
+    public View getFocusedChild() {
+        if (linearLayoutManager != null) {
+            int position = linearLayoutManager.findLastVisibleItemPosition();
+            return linearLayoutManager.findViewByPosition(position);
+        }
+        return super.getFocusedChild();
     }
 
     public void setSelectedPosition(int position) {
@@ -185,21 +219,19 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
         canvas.drawColor(Color.WHITE, PorterDuff.Mode.DST_OVER);
         ChatPopDataHolder.setChatPopBgBitmap(dialogBgBitmap);
 
-        emojiOnClickListener = new ChatPopActivity.EmojiOnClickListener() {
-            @Override
-            public void onClick(Emoji emoji) {
-                if (menuEmojiOnClickListener != null) {
-                    menuEmojiOnClickListener.onClick(emoji, messageInfo);
-                }
-            }
-        };
-        ChatPopDataHolder.setEmojiOnClickListener(emojiOnClickListener);
         ChatPopDataHolder.setActionList(mPopActions);
         Intent intent = new Intent(getContext(), ChatPopActivity.class);
         ActivityOptionsCompat optionsCompat = ActivityOptionsCompat.makeSceneTransitionAnimation(getActivity(), view, "messageAreaTransition");
         Bundle bundle = optionsCompat.toBundle();
         intent.putExtra(TUIChatConstants.MESSAGE_BEAN, messageInfo);
         getActivity().startActivity(intent, bundle);
+        getActivity().setExitSharedElementCallback(new SharedElementCallback() {
+            @Override
+            public void onSharedElementEnd(List<String> sharedElementNames, List<View> sharedElements, List<View> sharedElementSnapshots) {
+                TUIChatService.getInstance().refreshMessage(messageInfo);
+                getActivity().setExitSharedElementCallback((SharedElementCallback) null);
+            }
+        });
     }
 
     public AppCompatActivity getActivity() {
@@ -262,16 +294,7 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
         ChatPopActivity.ChatPopMenuAction deleteAction = null;
         ChatPopActivity.ChatPopMenuAction infoAction = null;
 
-        boolean textIsAllSelected = true;
-        if (msg instanceof TextMessageBean || msg instanceof QuoteMessageBean) {
-            String selectText = msg.getSelectText();
-            if (!TextUtils.isEmpty(selectText)) {
-                String text = msg.getExtra();
-                if (!text.equals(selectText)) {
-                    textIsAllSelected = false;
-                }
-            }
-        }
+        boolean textIsAllSelected = isTextIsAllSelected(msg);
 
         if (msg instanceof TextMessageBean || msg instanceof QuoteMessageBean) {
             copyAction = new ChatPopActivity.ChatPopMenuAction();
@@ -284,7 +307,7 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
             speakerModeSwitchAction = new ChatPopActivity.ChatPopMenuAction();
             int actionIcon = R.drawable.chat_minimalist_pop_menu_speaker;
             String actionName = getContext().getString(R.string.chat_speaker_mode_on_action);
-            boolean isSpeakerMode = TUIChatConfigs.getConfigs().getGeneralConfig().isEnableSoundMessageSpeakerMode();
+            boolean isSpeakerMode = TUIChatConfigs.getGeneralConfig().isEnableSoundMessageSpeakerMode();
             if (isSpeakerMode) {
                 actionIcon = R.drawable.chat_minimalist_pop_menu_ear;
                 actionName = getContext().getString(R.string.chat_speaker_mode_off_action);
@@ -303,7 +326,7 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
             if (msg.isSelf()) {
                 if (msg.getStatus() != TUIMessageBean.MSG_STATUS_SEND_FAIL) {
                     long timeInterval = TUIChatUtils.getServerTime() - msg.getMessageTime();
-                    if (timeInterval < TUIChatConfigs.getConfigs().getGeneralConfig().getTimeIntervalForMessageRecall()) {
+                    if (timeInterval < TUIChatConfigMinimalist.getTimeIntervalForAllowedMessageRecall()) {
                         revokeAction = new ChatPopActivity.ChatPopMenuAction();
                         revokeAction.setActionName(getContext().getString(R.string.revoke_action));
                         revokeAction.setActionIcon(R.drawable.chat_minimalist_pop_menu_revoke);
@@ -343,44 +366,51 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
                 quoteAction.setActionClickListener(() -> mOnPopActionClickListener.onQuoteMessageClick(msg));
             }
         }
-        if (speakerModeSwitchAction != null) {
+
+        if (speakerModeSwitchAction != null && TUIChatConfigMinimalist.isEnableSpeakerModeSwitch()) {
             speakerModeSwitchAction.setPriority(11000);
             mPopActions.add(speakerModeSwitchAction);
         }
-        if (multiSelectAction != null) {
+        if (multiSelectAction != null && TUIChatConfigMinimalist.isEnableSelect() && !msg.hasRiskContent()) {
             multiSelectAction.setPriority(8000);
             mPopActions.add(multiSelectAction);
         }
-        if (quoteAction != null && TUIChatConfigs.getConfigs().getGeneralConfig().isEnablePopMenuReferenceAction()) {
+        if (quoteAction != null && TUIChatConfigMinimalist.isEnableQuote() && !msg.hasRiskContent()) {
             quoteAction.setPriority(7000);
             mPopActions.add(quoteAction);
         }
-        if (replyAction != null && TUIChatConfigs.getConfigs().getGeneralConfig().isEnablePopMenuReplyAction()) {
+        if (replyAction != null && TUIChatConfigMinimalist.isEnableReply() && !msg.hasRiskContent()) {
             replyAction.setPriority(6000);
             mPopActions.add(replyAction);
         }
-        if (revokeAction != null) {
+        if (revokeAction != null && TUIChatConfigMinimalist.isEnableRecall()) {
             revokeAction.setPriority(5000);
             mPopActions.add(revokeAction);
         }
-        if (deleteAction != null) {
+        if (deleteAction != null && TUIChatConfigMinimalist.isEnableDelete()) {
             deleteAction.setPriority(4000);
             mPopActions.add(deleteAction);
         }
 
         if (isDefaultMessage(msg)) {
-            if (copyAction != null) {
+            if (copyAction != null && TUIChatConfigMinimalist.isEnableCopy() && !msg.hasRiskContent()) {
                 copyAction.setPriority(10000);
                 mPopActions.add(copyAction);
             }
-            if (forwardAction != null) {
+            if (forwardAction != null && TUIChatConfigMinimalist.isEnableForward()) {
                 forwardAction.setPriority(9000);
                 mPopActions.add(forwardAction);
             }
-            if (infoAction != null) {
+            if (infoAction != null && TUIChatConfigMinimalist.isEnableInfo()  && !msg.hasRiskContent()) {
                 infoAction.setPriority(2000);
                 mPopActions.add(infoAction);
             }
+        }
+
+        ChatPopActivity.ChatPopMenuAction groupPinAction = getChatPopMenuPinAction(msg);
+        if (groupPinAction != null && TUIChatConfigMinimalist.isEnablePin()) {
+            groupPinAction.setPriority(3000);
+            mPopActions.add(groupPinAction);
         }
 
         mPopActions.addAll(mMorePopActions);
@@ -391,6 +421,69 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
                 return o2.getPriority() - o1.getPriority();
             }
         });
+    }
+
+    private ChatPopActivity.ChatPopMenuAction getChatPopMenuPinAction(TUIMessageBean msg) {
+        ChatPopActivity.ChatPopMenuAction groupPinAction = null;
+        if (presenter instanceof GroupChatPresenter && TUIChatConfigs.getGeneralConfig().isEnableGroupChatPinMessage()
+            && ((GroupChatPresenter) presenter).canPinnedMessage() && msg.getStatus() != TUIMessageBean.MSG_STATUS_SEND_FAIL
+                && msg.getStatus() != TUIMessageBean.MSG_STATUS_SENDING && !msg.hasRiskContent()) {
+            groupPinAction = new ChatPopActivity.ChatPopMenuAction();
+            if (((GroupChatPresenter) presenter).isMessagePinned(msg.getId())) {
+                groupPinAction.setActionName(getContext().getResources().getString(R.string.chat_group_unpin_message));
+                groupPinAction.setActionIcon(R.drawable.chat_minimalist_pop_menu_cancel_pin);
+                groupPinAction.setActionClickListener(new ChatPopActivity.ChatPopMenuAction.OnClickListener() {
+                    @Override
+                    public void onClick() {
+                        ((GroupChatPresenter) presenter).unpinnedMessage(msg, new TUICallback() {
+                            @Override
+                            public void onSuccess() {
+                                // do nothing
+                            }
+
+                            @Override
+                            public void onError(int errorCode, String errorMessage) {
+                                ToastUtil.toastShortMessage(errorMessage);
+                            }
+                        });
+                    }
+                });
+            } else {
+                groupPinAction.setActionName(getContext().getResources().getString(R.string.chat_group_pin_message));
+                groupPinAction.setActionIcon(R.drawable.chat_minimalist_pop_menu_pin);
+                groupPinAction.setActionClickListener(new ChatPopActivity.ChatPopMenuAction.OnClickListener() {
+                    @Override
+                    public void onClick() {
+                        ((GroupChatPresenter) presenter).pinnedMessage(msg, new TUICallback() {
+                            @Override
+                            public void onSuccess() {
+                                // do nothing
+                            }
+
+                            @Override
+                            public void onError(int errorCode, String errorMessage) {
+                                ToastUtil.toastShortMessage(errorMessage);
+                            }
+                        });
+                    }
+                });
+            }
+        }
+        return groupPinAction;
+    }
+
+    private static boolean isTextIsAllSelected(TUIMessageBean msg) {
+        boolean textIsAllSelected = true;
+        if (msg instanceof TextMessageBean || msg instanceof QuoteMessageBean) {
+            String selectText = msg.getSelectText();
+            if (!TextUtils.isEmpty(selectText)) {
+                String text = msg.getExtra();
+                if (!text.equals(selectText)) {
+                    textIsAllSelected = false;
+                }
+            }
+        }
+        return textIsAllSelected;
     }
 
     private List<ChatPopActivity.ChatPopMenuAction> getExtensionActions(TUIMessageBean messageBean) {
@@ -419,10 +512,9 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
         return actionList;
     }
 
-
     public void displayBackToNewMessage(boolean display, String messageId, int count) {
-        if (mHandler != null) {
-            mHandler.displayBackToNewMessage(display, messageId, count);
+        if (chatDelegate != null) {
+            chatDelegate.displayBackToNewMessage(display, messageId, count);
         }
     }
 
@@ -460,18 +552,8 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
         }
     }
 
-    public void setHighShowPosition(int position) {
-        if (mAdapter != null) {
-            mAdapter.setHighShowPosition(position);
-        }
-    }
-
-    public OnLoadMoreHandler getLoadMoreHandler() {
-        return mHandler;
-    }
-
-    public void setLoadMoreMessageHandler(OnLoadMoreHandler mHandler) {
-        this.mHandler = mHandler;
+    public void setChatDelegate(ChatDelegate chatDelegate) {
+        this.chatDelegate = chatDelegate;
     }
 
     public OnEmptySpaceClickListener getEmptySpaceClickListener() {
@@ -482,12 +564,12 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
         this.mEmptySpaceClickListener = mEmptySpaceClickListener;
     }
 
-    public void setPopActionClickListener(OnChatPopActionClickListener listener) {
-        mOnPopActionClickListener = listener;
+    public void setOnGestureScrollListener(OnGestureScrollListener onGestureScrollListener) {
+        this.onGestureScrollListener = onGestureScrollListener;
     }
 
-    public void setMenuEmojiOnClickListener(OnMenuEmojiClickListener menuEmojiOnClickListener) {
-        this.menuEmojiOnClickListener = menuEmojiOnClickListener;
+    public void setPopActionClickListener(OnChatPopActionClickListener listener) {
+        mOnPopActionClickListener = listener;
     }
 
     public void setAdapterListener() {
@@ -506,6 +588,9 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
             public void onMessageClick(View view, TUIMessageBean messageBean) {
                 if (TUIChatUtils.chatEventOnMessageClicked(view, messageBean)) {
                     return;
+                }
+                if (chatDelegate != null) {
+                    chatDelegate.hideSoftInput();
                 }
                 if (mOnItemClickListener != null) {
                     mOnItemClickListener.onMessageClick(view, messageBean);
@@ -544,6 +629,9 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
                 if (TUIChatUtils.chatEventOnMessageClicked(view, messageBean)) {
                     return;
                 }
+                if (chatDelegate != null) {
+                    chatDelegate.hideSoftInput();
+                }
                 if (mOnItemClickListener != null) {
                     mOnItemClickListener.onRecallClick(view, messageBean);
                 }
@@ -557,18 +645,13 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
                 if (messageBean instanceof ReplyMessageBean) {
                     showRootMessageReplyDetail(((ReplyMessageBean) messageBean).getMsgRootId());
                 } else if (messageBean instanceof QuoteMessageBean) {
-                    locateOriginMessage(((QuoteMessageBean) messageBean).getOriginMsgId());
+                    presenter.locateQuoteOriginMessage((QuoteMessageBean) messageBean);
                 }
             }
 
             @Override
             public void onReplyDetailClick(TUIMessageBean messageBean) {
                 showRootMessageReplyDetail(messageBean);
-            }
-
-            @Override
-            public void onReactOnClick(String emojiId, TUIMessageBean messageBean) {
-                showMessageReactDetail(messageBean);
             }
 
             @Override
@@ -595,51 +678,10 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
             }
 
             @Override
-            public void onTextSelected(View view, int position, TUIMessageBean messageBean) {
-                if (TUIChatUtils.chatEventOnMessageLongClicked(view, messageBean)) {
-                    return;
-                }
-                if (mOnItemClickListener != null) {
-                    mOnItemClickListener.onTextSelected(view, position, messageBean);
-                }
-            }
-
-            @Override
             public void onMessageReadStatusClick(View view, TUIMessageBean messageBean) {
-                if (mOnItemClickListener != null) {
+                if (mOnItemClickListener != null && messageBean.isSelf()) {
                     mOnItemClickListener.onMessageReadStatusClick(view, messageBean);
                 }
-            }
-        });
-    }
-
-    private void showMessageReactDetail(TUIMessageBean messageBean) {
-        ChatReactDialogFragment fragment = new ChatReactDialogFragment();
-        fragment.setMessageBean(messageBean);
-        fragment.setChatInfo(presenter.getChatInfo());
-        fragment.setOnReactClickListener(new ChatReactDialogFragment.OnReactClickListener() {
-            @Override
-            public void onClick(String userID, String emojiKey) {
-                if (TextUtils.equals(userID, TUILogin.getLoginUser())) {
-                    presenter.reactMessage(emojiKey, messageBean);
-                }
-            }
-        });
-        fragment.show(getActivity().getSupportFragmentManager(), "react");
-    }
-
-    private void locateOriginMessage(String originMsgId) {
-        if (TextUtils.isEmpty(originMsgId)) {
-            ToastUtil.toastShortMessage(getContext().getString(R.string.locate_origin_msg_failed_tip));
-            return;
-        }
-        presenter.locateMessage(originMsgId, new IUIKitCallback<Void>() {
-            @Override
-            public void onSuccess(Void data) {}
-
-            @Override
-            public void onError(String module, int errCode, String errMsg) {
-                ToastUtil.toastShortMessage(getContext().getString(R.string.locate_origin_msg_failed_tip));
             }
         });
     }
@@ -676,186 +718,6 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
     }
 
     @Override
-    public int getAvatarRadius() {
-        return properties.getAvatarRadius();
-    }
-
-    @Override
-    public void setAvatarRadius(int radius) {
-        properties.setAvatarRadius(radius);
-    }
-
-    @Override
-    public int[] getAvatarSize() {
-        return properties.getAvatarSize();
-    }
-
-    @Override
-    public void setAvatarSize(int[] size) {
-        properties.setAvatarSize(size);
-    }
-
-    @Override
-    public int getAvatar() {
-        return properties.getAvatar();
-    }
-
-    @Override
-    public void setAvatar(int resId) {
-        properties.setAvatar(resId);
-    }
-
-    @Override
-    public Drawable getRightBubble() {
-        return properties.getRightBubble();
-    }
-
-    @Override
-    public void setRightBubble(Drawable bubble) {
-        properties.setRightBubble(bubble);
-    }
-
-    @Override
-    public Drawable getLeftBubble() {
-        return properties.getLeftBubble();
-    }
-
-    @Override
-    public void setLeftBubble(Drawable bubble) {
-        properties.setLeftBubble(bubble);
-    }
-
-    @Override
-    public int getNameFontSize() {
-        return properties.getNameFontSize();
-    }
-
-    @Override
-    public void setNameFontSize(int size) {
-        properties.setNameFontSize(size);
-    }
-
-    @Override
-    public int getNameFontColor() {
-        return properties.getNameFontColor();
-    }
-
-    @Override
-    public void setNameFontColor(int color) {
-        properties.setNameFontColor(color);
-    }
-
-    @Override
-    public int getLeftNameVisibility() {
-        return properties.getLeftNameVisibility();
-    }
-
-    @Override
-    public void setLeftNameVisibility(int visibility) {
-        properties.setLeftNameVisibility(visibility);
-    }
-
-    @Override
-    public int getRightNameVisibility() {
-        return properties.getRightNameVisibility();
-    }
-
-    @Override
-    public void setRightNameVisibility(int visibility) {
-        properties.setRightNameVisibility(visibility);
-    }
-
-    @Override
-    public int getChatContextFontSize() {
-        return properties.getChatContextFontSize();
-    }
-
-    @Override
-    public void setChatContextFontSize(int size) {
-        properties.setChatContextFontSize(size);
-    }
-
-    @Override
-    public int getRightChatContentFontColor() {
-        return properties.getRightChatContentFontColor();
-    }
-
-    @Override
-    public void setRightChatContentFontColor(int color) {
-        properties.setRightChatContentFontColor(color);
-    }
-
-    @Override
-    public int getLeftChatContentFontColor() {
-        return properties.getLeftChatContentFontColor();
-    }
-
-    @Override
-    public void setLeftChatContentFontColor(int color) {
-        properties.setLeftChatContentFontColor(color);
-    }
-
-    @Override
-    public Drawable getTipsMessageBubble() {
-        return properties.getTipsMessageBubble();
-    }
-
-    @Override
-    public void setTipsMessageBubble(Drawable bubble) {
-        properties.setTipsMessageBubble(bubble);
-    }
-
-    @Override
-    public int getTipsMessageFontSize() {
-        return properties.getTipsMessageFontSize();
-    }
-
-    @Override
-    public void setTipsMessageFontSize(int size) {
-        properties.setTipsMessageFontSize(size);
-    }
-
-    @Override
-    public int getTipsMessageFontColor() {
-        return properties.getTipsMessageFontColor();
-    }
-
-    @Override
-    public void setTipsMessageFontColor(int color) {
-        properties.setTipsMessageFontColor(color);
-    }
-
-    @Override
-    public Drawable getChatTimeBubble() {
-        return properties.getChatTimeBubble();
-    }
-
-    @Override
-    public void setChatTimeBubble(Drawable bubble) {
-        properties.setChatTimeBubble(bubble);
-    }
-
-    @Override
-    public int getChatTimeFontSize() {
-        return properties.getChatTimeFontSize();
-    }
-
-    @Override
-    public void setChatTimeFontSize(int size) {
-        properties.setChatTimeFontSize(size);
-    }
-
-    @Override
-    public int getChatTimeFontColor() {
-        return properties.getChatTimeFontColor();
-    }
-
-    @Override
-    public void setChatTimeFontColor(int color) {
-        properties.setChatTimeFontColor(color);
-    }
-
-    @Override
     public OnItemClickListener getOnItemClickListener() {
         return mAdapter.getOnItemClickListener();
     }
@@ -883,22 +745,18 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
     }
 
     public void loadMessageFinish() {
-        if (mHandler != null) {
-            mHandler.loadMessageFinish();
+        if (chatDelegate != null) {
+            chatDelegate.loadMessageFinish();
         }
     }
 
     public void scrollMessageFinish() {
-        if (mHandler != null) {
-            mHandler.scrollMessageFinish();
+        if (chatDelegate != null) {
+            chatDelegate.scrollMessageFinish();
         }
     }
 
-    public interface OnMenuEmojiClickListener {
-        void onClick(Emoji emoji, TUIMessageBean messageBean);
-    }
-
-    public interface OnLoadMoreHandler {
+    public interface ChatDelegate {
         void displayBackToLastMessage(boolean display);
 
         void displayBackToNewMessage(boolean display, String messageId, int count);
@@ -906,9 +764,7 @@ public class MessageRecyclerView extends RecyclerView implements IMessageRecycle
         void loadMessageFinish();
 
         void scrollMessageFinish();
-    }
 
-    public interface OnEmptySpaceClickListener {
-        void onClick();
+        void hideSoftInput();
     }
 }

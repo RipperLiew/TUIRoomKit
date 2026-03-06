@@ -10,24 +10,13 @@
   * Usage:
   * Use <Drawer title="there is title" v-model="showDrawer"></Drawer> in template
   *
-  * 名称: Drawer
-  * @param title String required [Drawer 的标题]
-  * @param modelValue Boolean [控制是否显示 Drawer]
-  * @param modal Boolean [Drawer 是否有遮罩层]
-  * @param size number | string [Drawer 的宽度]
-  * @param beforeClose (done: DoneFn) => void; [Drawer 关闭前的回调函数]
-  * @param closeOnClickModal Boolean [是否支持点击遮罩层关闭 Drawer]
-  * @param showClose Boolean [是否展示关闭按钮]
-  * @param appendToBody Boolean [是否插入到 body 中]
-  * 使用方式：
-  * 在 template 中使用 <Drawer title="there is title" v-model="showDrawer"></Drawer>
 -->
 <template>
   <div
     v-if="visible"
+    ref="drawerRef"
     class="overlay-container"
     :class="[modal && 'overlay']"
-    ref="drawerRef"
     @mouseup="handleOverlayMouseUp"
     @mousedown="handleOverlayMouseDown"
     @click="handleOverlayClick"
@@ -52,7 +41,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
+import {
+  ref,
+  watch,
+  computed,
+  withDefaults,
+  defineProps,
+  defineEmits,
+} from 'vue';
 import SvgIcon from './SvgIcon.vue';
 import CloseIcon from '../../../assets/icons/CloseIcon.svg';
 import { addSuffix } from '../../../utils/utils';
@@ -61,14 +57,14 @@ type DoneFn = () => void;
 type BeforeCloseFn = (done: DoneFn) => void;
 
 interface Props {
-  title?: string,
-  modelValue: boolean,
-  modal?: boolean,
-  size?: string | number,
+  title?: string;
+  modelValue: boolean;
+  modal?: boolean;
+  size?: string | number;
   beforeClose?: BeforeCloseFn | undefined;
-  appendToBody?: boolean,
+  appendToBody?: boolean;
   appendToRoomContainer?: false;
-  closeOnClickModal?: boolean,
+  closeOnClickModal?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -88,11 +84,14 @@ const drawerRef = ref();
 const visible = ref(false);
 const drawerContainerStyle = computed(() => `width: ${addSuffix(props.size)}`);
 
-watch(() => props.modelValue, (val) => {
-  visible.value = val;
-});
+watch(
+  () => props.modelValue,
+  val => {
+    visible.value = val;
+  }
+);
 
-watch(visible, (val) => {
+watch(visible, val => {
   if (val) {
     if (props.appendToBody) {
       document?.body.appendChild(drawerRef.value);
@@ -112,8 +111,8 @@ function handleClose() {
     props.beforeClose(doClose);
   } else {
     doClose();
-  };
-};
+  }
+}
 
 let mouseDownInCurrentTarget = false;
 let mouseUpInCurrentTarget = false;
@@ -136,71 +135,65 @@ function handleOverlayClick() {
     mouseUpInCurrentTarget = false;
   }
 }
-
 </script>
 
 <style lang="scss" scoped>
 .overlay-container {
-  position: fixed;
+  position: absolute;
   top: 0;
+  right: 0;
   bottom: 0;
   left: 0;
-  right: 0;
   z-index: 2007;
+
   &.overlay {
-    background-color: rgba(15, 16, 20, 0.60);
+    background-color: var(--uikit-color-black-3);
   }
 }
 
-.tui-theme-white .drawer-container {
-  --background-color: var(--background-color-1);
-  --box-shadow: 0px 2px 4px rgba(32, 77, 141, 0.03),
-    0px 6px 10px rgba(32, 77, 141, 0.06),
-    0px 3px 14px rgba(32, 77, 141, 0.05);
-}
-
-.tui-theme-black .drawer-container {
-  --background-color: var(--background-color-2);
-  --box-shadow: 0px -8px 30px rgba(15, 16, 20, 0.5);
-}
-
 .drawer-container {
-  background-color: var(--background-color);
   position: absolute;
   right: 0;
-  height: 100%;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--box-shadow);
-  border-radius: 8px 0px 0px 8px;
+  height: 100%;
+  border-radius: 8px 0 0 8px;
+  background-color: var(--bg-color-operate);
+  box-shadow:
+    0px 12px 26px var(--uikit-color-black-8),
+    0px 8px 12px var(--uikit-color-black-8);
+
   .drawer-header {
-    height: 64px;
-    box-shadow: 0px 1px 0px var(--stroke-color);
     position: relative;
     display: flex;
-    padding: 0 20px;
     align-items: center;
+    height: 64px;
+    padding: 0 20px;
+    box-shadow: 0px 1px 0 var(--stroke-color-primary);
+
     .drawer-header-title {
-      color: var(--font-color-1);
       font-size: 16px;
       font-style: normal;
       font-weight: 600;
       line-height: 24px;
+      color: var(--text-color-primary);
     }
+
     .close {
-      width: 32px;
-      height: 32px;
       position: absolute;
       top: 50%;
-      transform: translateY(-50%);
       right: 20px;
       display: flex;
-      justify-content: center;
       align-items: center;
-      color: var(--font-color-1);
+      justify-content: center;
+      width: 32px;
+      height: 32px;
       cursor: pointer;
+      transform: translateY(-50%);
+      color: var(--text-color-primary);
     }
   }
+
   .drawer-content {
     flex: 1;
     overflow: auto;

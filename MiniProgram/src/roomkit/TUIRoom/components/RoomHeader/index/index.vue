@@ -4,52 +4,43 @@
       <div class="icon-box">
         <switch-camera />
         <switch-mirror />
+        <switch-audio-route v-if="isWeChat" />
       </div>
-      <room-info />
-      <end-control
-        @on-destroy-room="onDestroyRoom"
-        @on-exit-room="onExitRoom"
-      />
+      <room-info class="room-info" />
+      <end-control />
     </div>
-    <switch-theme :visible="false"></switch-theme>
+    <switch-theme :visible="false" />
   </div>
 </template>
 <script setup lang="ts">
 import EndControl from '../../RoomFooter/EndControl/index.vue';
 import SwitchCamera from './SwitchCamera.vue';
 import SwitchMirror from './SwitchMirror.vue';
+import SwitchAudioRoute from './SwitchAudioRoute.vue';
 import RoomInfo from '../RoomInfo/index.vue';
-import TUIRoomAegis from '../../../utils/aegis';
 import SwitchTheme from '../../common/SwitchTheme.vue';
-
-const emit = defineEmits(['log-out', 'on-destroy-room', 'on-exit-room']);
-
-const onDestroyRoom = (info: { code: number; message: string }) => {
-  emit('on-destroy-room', info);
-  TUIRoomAegis.reportEvent({ name: 'destroyRoom', ext1: 'destroyRoom-success' });
-};
-
-const onExitRoom = (info: { code: number; message: string }) => {
-  emit('on-exit-room', info);
-  TUIRoomAegis.reportEvent({ name: 'exitRoom', ext1: 'exitRoom-success' });
-};
-
+import { isWeChat } from '../../../utils/environment';
 </script>
 <style scoped>
-.header{
-  height: 100%
+.header {
+  height: 100%;
 }
-.header-container{
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding:0 12px;
+
+.header-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0 12px;
 }
-.icon-box{
-   min-width: 50px;
-   display: flex;
-   align-items: center;
-   justify-content: space-between
+
+.icon-box {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.room-info {
+  overflow: auto;
 }
 </style>

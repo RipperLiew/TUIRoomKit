@@ -7,6 +7,7 @@ import android.widget.TextView;
 import com.tencent.qcloud.tuikit.timcommon.bean.TUIMessageBean;
 import com.tencent.qcloud.tuikit.timcommon.component.face.FaceManager;
 import com.tencent.qcloud.tuikit.timcommon.minimalistui.widget.message.MessageContentHolder;
+import com.tencent.qcloud.tuikit.timcommon.util.FaceUtil;
 import com.tencent.qcloud.tuikit.tuichat.R;
 import com.tencent.qcloud.tuikit.tuichat.bean.message.MergeMessageBean;
 
@@ -39,18 +40,6 @@ public class MergeMessageHolder extends MessageContentHolder {
     public void layoutVariableViews(final TUIMessageBean msg, final int position) {
         if (msg == null) {
             return;
-        }
-        setMessageBubbleBackground(R.drawable.chat_minimalist_merge_message_border);
-        if (!isForwardMode && !isMessageDetailMode) {
-            if (msg.isSelf()) {
-                if (properties.getRightBubble() != null && properties.getRightBubble().getConstantState() != null) {
-                    setMessageBubbleBackground(properties.getRightBubble().getConstantState().newDrawable());
-                }
-            } else {
-                if (properties.getLeftBubble() != null && properties.getLeftBubble().getConstantState() != null) {
-                    setMessageBubbleBackground(properties.getLeftBubble().getConstantState().newDrawable());
-                }
-            }
         }
 
         MergeMessageBean messageBean = (MergeMessageBean) msg;
@@ -91,6 +80,10 @@ public class MergeMessageHolder extends MessageContentHolder {
         setMessageBubbleDefaultPadding();
     }
 
+    @Override
+    public void setMessageBubbleBackground(int resID) {
+        super.setMessageBubbleBackground(R.drawable.chat_minimalist_merge_message_border);
+    }
 
     void setContent(List<String> abstractList) {
         firstLine.setVisibility(View.GONE);
@@ -101,38 +94,50 @@ public class MergeMessageHolder extends MessageContentHolder {
         }
         final String splitStr = "\u202C:";
         for (int i = 0; i < abstractList.size(); i++) {
-            String absString = abstractList.get(i);
-            String sender = absString.split(":")[0];
-            String content = absString.split(":")[1];
-            if (absString.contains(splitStr)) {
-                sender = absString.split(splitStr)[0];
-                content = absString.split(splitStr)[1];
-            }
-
             TextView senderTv;
             TextView contentTv;
+            TextView splitTv;
             if (i == 0) {
                 senderTv = firstLine.findViewById(R.id.sender_name_tv);
                 contentTv = firstLine.findViewById(R.id.content_tv);
+                splitTv = firstLine.findViewById(R.id.split_tv);
                 firstLine.setVisibility(View.VISIBLE);
             } else if (i == 1) {
                 senderTv = secondLine.findViewById(R.id.sender_name_tv);
                 contentTv = secondLine.findViewById(R.id.content_tv);
+                splitTv = secondLine.findViewById(R.id.split_tv);
                 secondLine.setVisibility(View.VISIBLE);
             } else if (i == 2) {
                 senderTv = thirdLine.findViewById(R.id.sender_name_tv);
                 contentTv = thirdLine.findViewById(R.id.content_tv);
+                splitTv = thirdLine.findViewById(R.id.split_tv);
                 thirdLine.setVisibility(View.VISIBLE);
             } else {
                 return;
             }
-            senderTv.setText(sender);
-            contentTv.setText(FaceManager.emojiJudge(content));
+            String absString = abstractList.get(i);
+            if (absString.contains(splitStr)) {
+                String sender = "";
+                String content = "";
+                if (absString.contains(splitStr)) {
+                    String[] strings = absString.split(splitStr);
+                    if (strings.length >= 1) {
+                        sender = strings[0];
+                    }
+                    if (strings.length >= 2) {
+                        content = strings[1];
+                    }
+                }
+                senderTv.setVisibility(View.VISIBLE);
+                senderTv.setText(sender);
+                splitTv.setVisibility(View.VISIBLE);
+                contentTv.setText(FaceManager.emojiJudge(content));
+            } else {
+                senderTv.setVisibility(View.GONE);
+                contentTv.setText(FaceManager.emojiJudge(absString));
+                splitTv.setVisibility(View.GONE);
+            }
         }
     }
 
-    @Override
-    protected boolean isNeedChangedBackground() {
-        return false;
-    }
 }

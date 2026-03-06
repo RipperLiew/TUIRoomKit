@@ -8,9 +8,9 @@
 
 import SnapKit
 import UIKit
-import TUIRoomEngine
 import TUIRoomKit
 import TUICore
+import RTCRoomEngine
 
 class EnterRoomViewController: UIViewController {
     weak var rootView: EnterRoomView?
@@ -57,12 +57,16 @@ class EnterRoomViewController: UIViewController {
         self.rootView = rootView
     }
     
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        ConferenceSession.sharedInstance.addObserver(observer: self)
+    }
+    
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         navigationController?.setNavigationBarHidden(false, animated: false)
         navigationItem.leftBarButtonItem = UIBarButtonItem(customView: backButton)
         UIApplication.shared.isIdleTimerDisabled = false
-        renewRootViewState()
     }
     
     @objc func backButtonClick(sender: UIButton) {
@@ -70,6 +74,7 @@ class EnterRoomViewController: UIViewController {
     }
     
     deinit {
+        ConferenceSession.sharedInstance.removeObserver(observer: self)
         debugPrint("deinit \(self)")
     }
 }
@@ -140,45 +145,58 @@ extension EnterRoomViewController {
             return
         }
         roomId = roomIDStr
-        rootView?.updateEnterButtonState(isEnabled: false)
-        rootView?.updateLoadingState(isStarted: true)
-        TUIRoomKit.createInstance().enterRoom(roomId: roomId, enableAudio: enableLocalAudio, enableVideo: enableLocalVideo,
-                                              isSoundOnSpeaker: isSoundOnSpeaker) { [weak self] in
-            guard let self = self else { return }
-            self.renewRootViewState()
-        } onError: { [weak self] code, message in
-            guard let self = self else { return }
-            self.renewRootViewState()
-            self.rootView?.makeToast(message)
-        }
+        joinConference(roomId: roomId)
     }
     
-    private func renewRootViewState() {
-        rootView?.updateEnterButtonState(isEnabled: true)
-        rootView?.updateLoadingState(isStarted: false)
+    private func joinConference(roomId: String) {
+        let vc =  ConferenceMainViewController()
+        let params = JoinConferenceParams(roomId: roomId)
+        params.isOpenMicrophone = enableLocalAudio
+        params.isOpenCamera = enableLocalVideo
+        params.isOpenSpeaker = isSoundOnSpeaker
+        vc.setJoinConferenceParams(params: params)
+        navigationController?.pushViewController(vc, animated: true)
+    }
+    
+}
+
+extension EnterRoomViewController: ConferenceObserver {
+    func onConferenceJoined(roomInfo: TUIRoomInfo, error: TUIError, message: String) {
+        guard error != .success else { return }
+        navigationController?.popViewController(animated: true)
+        guard !message.isEmpty else { return }
+        SceneDelegate.getCurrentWindow()?.makeToast(message, duration: 1, position:TUICSToastPositionCenter)
+    }
+    
+    func onConferenceFinished(roomInfo: TUIRoomInfo, reason: ConferenceFinishedReason) {
+        debugPrint("onConferenceFinished")
+    }
+    
+    func onConferenceExited(roomInfo: TUIRoomInfo, reason: ConferenceExitedReason) {
+        debugPrint("onConferenceExited")
     }
 }
 
 private extension String {
     static var enterRoomIdErrorToast: String {
-        RoomDemoLocalize("Demo.TUIRoomKit.input.error.room.num.toast")
+        RoomDemoLocalize("Enter a valid room ID.")
     }
     static var placeholderTipsText: String {
-        RoomDemoLocalize("Demo.TUIRoomKit.input.room.num")
+        RoomDemoLocalize("Enter a room ID")
     }
     static var userNameText: String {
-        RoomDemoLocalize("Demo.TUIRoomKit.user.name")
+        RoomDemoLocalize("Your Name")
     }
     static var roomNumText: String {
-        RoomDemoLocalize("Demo.TUIRoomKit.room.num")
+        RoomDemoLocalize("Room ID")
     }
     static var openCameraText: String {
-        RoomDemoLocalize("Demo.TUIRoomKit.open.video")
+        RoomDemoLocalize("Video")
     }
     static var openMicText: String {
-        RoomDemoLocalize("Demo.TUIRoomKit.open.mic")
+        RoomDemoLocalize("Mic")
     }
     static var openSpeakerText: String {
-        RoomDemoLocalize("Demo.TUIRoomKit.open.speaker")
+        RoomDemoLocalize("Speaker")
     }
 }

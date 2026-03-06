@@ -6,6 +6,7 @@ import android.net.Uri;
 import android.widget.ImageView;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.Priority;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
 import com.bumptech.glide.request.RequestListener;
 import com.bumptech.glide.request.RequestOptions;
@@ -16,7 +17,7 @@ import java.io.File;
 import java.util.concurrent.ExecutionException;
 
 public class GlideEngine {
-    public static void loadCornerImageWithoutPlaceHolder(ImageView imageView, String filePath, RequestListener listener, float radius) {
+    public static void loadCornerImageWithoutPlaceHolder(ImageView imageView, Object uri, RequestListener listener, float radius) {
         RoundedCorners transform = null;
         if ((int) radius > 0) {
             transform = new RoundedCorners((int) radius);
@@ -26,7 +27,7 @@ public class GlideEngine {
         if (transform != null) {
             options = options.transform(transform);
         }
-        Glide.with(TUILogin.getAppContext()).load(filePath).apply(options).listener(listener).into(imageView);
+        Glide.with(TUILogin.getAppContext()).load(uri).apply(options).listener(listener).into(imageView);
     }
 
     public static void clear(ImageView imageView) {
@@ -91,6 +92,7 @@ public class GlideEngine {
     public static void loadUserIcon(ImageView imageView, Object uri, int radius) {
         Glide.with(TUILogin.getAppContext())
             .load(uri)
+            .diskCacheStrategy(DiskCacheStrategy.ALL)
             .placeholder(TUIThemeManager.getAttrResId(TUILogin.getAppContext(), R.attr.core_default_user_icon))
             .apply(new RequestOptions().centerCrop().error(TUIThemeManager.getAttrResId(TUILogin.getAppContext(), R.attr.core_default_user_icon)))
             .into(imageView);
@@ -109,18 +111,6 @@ public class GlideEngine {
             .load(imageUrl)
             .apply(new RequestOptions().error(TUIThemeManager.getAttrResId(TUILogin.getAppContext(), R.attr.core_default_user_icon)))
             .into(targetImageSize, targetImageSize)
-            .get();
-    }
-
-    public static Bitmap loadBitmap(Object imageUrl, int width, int height) throws InterruptedException, ExecutionException {
-        if (imageUrl == null) {
-            return null;
-        }
-        return Glide.with(TUILogin.getAppContext())
-            .asBitmap()
-            .load(imageUrl)
-            .apply(new RequestOptions().error(TUIThemeManager.getAttrResId(TUILogin.getAppContext(), R.attr.core_default_user_icon)))
-            .into(width, height)
             .get();
     }
 

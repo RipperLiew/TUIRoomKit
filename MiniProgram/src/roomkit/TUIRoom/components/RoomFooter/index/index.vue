@@ -1,60 +1,71 @@
 <template>
   <div class="footer-container">
-    <audio-control @tap="() => handleControlClick('audioControl')"></audio-control>
-    <video-control @tap="() => handleControlClick('videoControl')"></video-control>
+    <audio-control
+      v-if="!isAudience || isAdmin"
+      @tap="() => handleControlClick('audioControl')"
+    />
+    <video-control
+      v-if="!isAudience || isAdmin"
+      @tap="() => handleControlClick('videoControl')"
+    />
     <chat-control
       v-if="!roomStore.isSpeakAfterTakingSeatMode"
       @tap="() => handleControlClick('chatControl')"
-    ></chat-control>
+    />
     <master-apply-control
       v-if="roomStore.isSpeakAfterTakingSeatMode && (isMaster || isAdmin)"
       @tap="() => handleControlClick('MasterApplyControl')"
-    ></master-apply-control>
+    />
     <member-apply-control
       v-if="roomStore.isSpeakAfterTakingSeatMode && !isMaster"
       @tap="() => handleControlClick('MemberApplyControl')"
-    ></member-apply-control>
+    />
     <manage-member-control
       @tap="() => handleControlClick('manageMemberControl')"
-    ></manage-member-control>
-    <more-control @tap="() => handleControlClick('moreControl')"></more-control>
+    />
+    <more-control
+      @tap="() => handleControlClick('moreControl')"
+      @show-overlay="handleShowOverlay"
+    />
   </div>
 </template>
 <script setup lang="ts">
+import { defineEmits } from 'vue';
 import AudioControl from '../AudioControl.vue';
 import VideoControl from '../VideoControl.vue';
 import ManageMemberControl from '../ManageMemberControl.vue';
 import ChatControl from '../ChatControl.vue';
 import MasterApplyControl from '../ManageStageControl.vue';
 import MemberApplyControl from '../ApplyControl/MemberApplyControl.vue';
-import MoreControl from '../MoreControl/index.vue';
+import MoreControl from '../MoreControl/index';
 import bus from '../../../hooks/useMitt';
-
-import TUIRoomAegis from '../../../utils/aegis';
 
 import useRoomFooter from './useRoomFooterHooks';
 
-const {
-  roomStore,
-  isMaster,
-  isAdmin,
-} = useRoomFooter();
+const { roomStore, isMaster, isAdmin, isAudience } = useRoomFooter();
 
+const emit = defineEmits(['show-overlay']);
 
 function handleControlClick(name: string) {
-  TUIRoomAegis.reportEvent({ name, ext1: name });
   bus.emit('experience-communication', name);
+}
+
+function handleShowOverlay(data: { name: string; visible: boolean }) {
+  emit('show-overlay', data);
 }
 </script>
 
-<style scoped>
-.footer-container{
+<style lang="scss" scoped>
+.footer-container {
   position: absolute;
   bottom: 0;
-  width: 100%;
-  height: 100%;
   display: flex;
-  justify-content: space-around;
+  flex-flow: row wrap;
   align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.7rem;
+  background-color: var(--bg-color-topbar);
+  box-shadow: 0 -8px 30px var(--uikit-color-black-8);
 }
 </style>

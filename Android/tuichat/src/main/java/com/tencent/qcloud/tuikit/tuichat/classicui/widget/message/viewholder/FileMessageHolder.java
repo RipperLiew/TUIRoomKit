@@ -24,6 +24,7 @@ import com.tencent.qcloud.tuicore.util.ErrorMessageConverter;
 import com.tencent.qcloud.tuicore.util.ToastUtil;
 import com.tencent.qcloud.tuikit.timcommon.bean.TUIMessageBean;
 import com.tencent.qcloud.tuikit.timcommon.classicui.widget.message.MessageContentHolder;
+import com.tencent.qcloud.tuikit.timcommon.config.classicui.TUIConfigClassic;
 import com.tencent.qcloud.tuikit.timcommon.util.FileUtil;
 import com.tencent.qcloud.tuikit.timcommon.util.LayoutUtil;
 import com.tencent.qcloud.tuikit.timcommon.util.ScreenUtil;
@@ -67,35 +68,6 @@ public class FileMessageHolder extends MessageContentHolder {
     @Override
     public void layoutVariableViews(final TUIMessageBean msg, final int position) {
         msgId = msg.getId();
-        reactView.setThemeColorId(TUIThemeManager.getAttrResId(reactView.getContext(), com.tencent.qcloud.tuikit.timcommon.R.attr.chat_react_other_text_color));
-        if (isForwardMode || isReplyDetailMode) {
-            setMessageBubbleBackground(R.drawable.chat_bubble_other_cavity_bg);
-            statusImage.setVisibility(View.GONE);
-        } else {
-            if (msg.isSelf()) {
-                if (properties.getRightBubble() != null && properties.getRightBubble().getConstantState() != null) {
-                    setMessageBubbleBackground(properties.getRightBubble().getConstantState().newDrawable());
-                } else {
-                    setMessageBubbleBackground(R.drawable.chat_bubble_self_cavity_bg);
-                }
-            } else {
-                if (properties.getLeftBubble() != null && properties.getLeftBubble().getConstantState() != null) {
-                    setMessageBubbleBackground(properties.getLeftBubble().getConstantState().newDrawable());
-                } else {
-                    setMessageBubbleBackground(R.drawable.chat_bubble_other_cavity_bg);
-                }
-            }
-        }
-        normalBackground = getMessageBubbleBackground();
-
-        progressListener = new ProgressPresenter.ProgressListener() {
-            @Override
-            public void onProgress(int progress) {
-                updateProgress(progress, msg);
-            }
-        };
-
-        sendingProgress.setVisibility(View.GONE);
         FileMessageBean message = (FileMessageBean) msg;
         final String path = ChatFileDownloadPresenter.getFilePath(message);
         boolean isFileExists = FileUtil.isFileExists(path);
@@ -103,26 +75,6 @@ public class FileMessageHolder extends MessageContentHolder {
         String size = FileUtil.formatFileSize(message.getFileSize());
         final String fileName = message.getFileName();
         fileSizeText.setText(size);
-        if (!isMultiSelectMode) {
-            msgContentFrame.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    if (isFileExists) {
-                        FileUtil.openFile(path, fileName);
-                    }
-                }
-            });
-        } else {
-            msgContentFrame.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    if (onItemClickListener != null) {
-                        onItemClickListener.onMessageClick(v, msg);
-                    }
-                }
-            });
-        }
-
         if (isFileExists) {
             String selfPath = ChatFileDownloadProvider.getFileSelfPath(message);
             // send from current device
@@ -145,6 +97,69 @@ public class FileMessageHolder extends MessageContentHolder {
             } else {
                 fileStatusText.setText(R.string.un_download);
             }
+        }
+
+        if (hasRiskContent) {
+            if (msg.getStatus() == TUIMessageBean.MSG_STATUS_SEND_FAIL) {
+                setRiskContent(itemView.getResources().getString(R.string.chat_risk_send_message_failed_alert));
+            } else {
+                setRiskContent(itemView.getResources().getString(R.string.chat_risk_image_message_alert));
+            }
+            msgContentFrame.setOnClickListener(null);
+            return;
+        }
+
+        if (isForwardMode || isReplyDetailMode) {
+            setMessageBubbleBackground(R.drawable.chat_bubble_other_cavity_bg);
+        } else {
+            if (msg.isSelf()) {
+                Drawable sendBubble = TUIConfigClassic.getSendBubbleBackground();
+                if (sendBubble != null) {
+                    msgArea.setBackground(sendBubble);
+                } else {
+                    setMessageBubbleBackground(R.drawable.chat_bubble_self_cavity_bg);
+                }
+            } else {
+                Drawable receiveBubble = TUIConfigClassic.getReceiveBubbleBackground();
+                if (receiveBubble != null) {
+                    msgArea.setBackground(receiveBubble);
+                } else {
+                    setMessageBubbleBackground(R.drawable.chat_bubble_other_cavity_bg);
+                }
+            }
+        }
+        if (!TUIConfigClassic.isEnableMessageBubbleStyle()) {
+            setMessageBubbleBackground(null);
+        }
+        normalBackground = getMessageBubbleBackground();
+
+        progressListener = new ProgressPresenter.ProgressListener() {
+            @Override
+            public void onProgress(int progress) {
+                updateProgress(progress, msg);
+            }
+        };
+
+        sendingProgress.setVisibility(View.GONE);
+
+        if (!isMultiSelectMode) {
+            msgContentFrame.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (isFileExists) {
+                        FileUtil.openFile(path, fileName);
+                    }
+                }
+            });
+        } else {
+            msgContentFrame.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (onItemClickListener != null) {
+                        onItemClickListener.onMessageClick(v, msg);
+                    }
+                }
+            });
         }
 
         if (!isFileExists) {
@@ -195,6 +210,7 @@ public class FileMessageHolder extends MessageContentHolder {
                 if (mAdapter != null) {
                     mAdapter.onItemRefresh(message);
                 }
+                TUIChatService.getInstance().refreshMessage(message);
             }
 
             @Override
@@ -204,6 +220,7 @@ public class FileMessageHolder extends MessageContentHolder {
                 if (mAdapter != null) {
                     mAdapter.onItemRefresh(message);
                 }
+                TUIChatService.getInstance().refreshMessage(message);
             }
         };
         ChatFileDownloadPresenter.downloadFile(message, downloadCallback);

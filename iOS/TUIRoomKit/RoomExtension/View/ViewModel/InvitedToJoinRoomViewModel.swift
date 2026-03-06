@@ -2,14 +2,13 @@
 //  RoomaInviteViewModel.swift
 //  TUIRoomKit
 //
-//  Created by 唐佳宁 on 2023/5/24.
+//  Created by janejntang on 2023/5/24.
 //  Copyright © 2023 Tencent. All rights reserved.
 //
 
 import Foundation
 import TUICore
 import AVFAudio
-import TUIRoomEngine
 
 class InvitedToJoinRoomViewModel: NSObject, AVAudioPlayerDelegate {
     let inviteUserName: String
@@ -48,7 +47,7 @@ class InvitedToJoinRoomViewModel: NSObject, AVAudioPlayerDelegate {
     
     func agreeAction() {
         stopPlay()
-        if EngineManager.createInstance().store.isEnteredRoom {
+        if EngineManager.shared.store.isEnteredRoom {
             roomManager.exitOrDestroyPreviousRoom { [weak self] in
                 guard let self = self else { return }
                 self.enterRoom()
@@ -61,7 +60,12 @@ class InvitedToJoinRoomViewModel: NSObject, AVAudioPlayerDelegate {
     }
     
     private func enterRoom() {
-        roomManager.enterRoom(roomId: roomId)
+        roomManager.enterRoom(roomId: roomId) {_ in
+            let vc = ConferenceMainViewController()
+            RoomRouter.shared.push(viewController: vc)
+        } onError: { code, message in
+            RoomRouter.makeToast(toast: code.description ?? message)
+        }
         closeInvitedToJoinRoomView()
     }
     

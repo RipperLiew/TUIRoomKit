@@ -8,9 +8,9 @@ import android.util.Log;
 
 import androidx.annotation.Nullable;
 
-import com.tencent.cloud.tuikit.roomkit.TUIRoomKit;
-import com.tencent.cloud.tuikit.roomkit.utils.UserModel;
-import com.tencent.cloud.tuikit.roomkit.utils.UserModelManager;
+import com.tencent.cloud.tuikit.engine.room.TUIRoomEngine;
+import com.tencent.cloud.tuikit.roomkit.common.utils.UserModel;
+import com.tencent.cloud.tuikit.roomkit.common.utils.UserModelManager;
 import com.tencent.liteav.debug.GenerateTestUserSig;
 import com.tencent.qcloud.tuicore.TUICore;
 import com.tencent.qcloud.tuicore.TUILogin;
@@ -22,6 +22,11 @@ public class SplashActivity extends Activity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (!isTaskRoot() && getIntent() != null && getIntent().hasCategory(Intent.CATEGORY_LAUNCHER)
+                && Intent.ACTION_MAIN.equals(getIntent().getAction())) {
+            finish();
+            return;
+        }
         navigation();
     }
 
@@ -40,13 +45,13 @@ public class SplashActivity extends Activity {
             startActivity(intent);
             finish();
         } else {
-            startPrepareActivity();
+            startConferenceOptionsActivity();
         }
     }
 
-    private void startPrepareActivity() {
+    private void startConferenceOptionsActivity() {
         final UserModel userModel = UserModelManager.getInstance().getUserModel();
-        int sdkAppId = GenerateTestUserSig.SDKAPPID;
+        int sdkAppId = GenerateTestUserSig.SDKAppID;
         String userId = userModel.userId;
         String userSig = GenerateTestUserSig.genTestUserSig(userModel.userId);
         Log.d(TAG,
@@ -56,8 +61,8 @@ public class SplashActivity extends Activity {
             public void onSuccess() {
                 Log.d(TAG, "TUILogin.login onSuccess");
                 String userName = TextUtils.isEmpty(userModel.userName) ? userModel.userId : userModel.userName;
-                TUIRoomKit.createInstance().setSelfInfo(userName, userModel.userAvatar, null);
-                TUICore.startActivity("PrepareActivity", null);
+                TUIRoomEngine.setSelfInfo(userName, userModel.userAvatar, null);
+                TUICore.startActivity("ConferenceOptionsActivity", null);
                 finish();
             }
 

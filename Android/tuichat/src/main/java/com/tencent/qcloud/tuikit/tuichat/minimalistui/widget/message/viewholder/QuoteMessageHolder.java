@@ -15,6 +15,7 @@ import com.tencent.qcloud.tuikit.timcommon.component.face.FaceManager;
 import com.tencent.qcloud.tuikit.timcommon.component.impl.GlideEngine;
 import com.tencent.qcloud.tuikit.timcommon.util.FileUtil;
 import com.tencent.qcloud.tuikit.timcommon.util.ScreenUtil;
+import com.tencent.qcloud.tuikit.timcommon.util.TextUtil;
 import com.tencent.qcloud.tuikit.tuichat.R;
 import com.tencent.qcloud.tuikit.tuichat.bean.message.ImageMessageBean;
 import com.tencent.qcloud.tuikit.tuichat.bean.message.QuoteMessageBean;
@@ -57,7 +58,6 @@ public class QuoteMessageHolder extends TextMessageHolder {
     public QuoteMessageHolder(View itemView) {
         super(itemView);
         quoteContentFrameLayout = itemView.findViewById(com.tencent.qcloud.tuikit.timcommon.R.id.quote_content_fl);
-        quoteContentFrameLayout.setVisibility(View.VISIBLE);
         LayoutInflater.from(itemView.getContext()).inflate(R.layout.minimalist_quote_message_content_layout, quoteContentFrameLayout);
         senderNameTv = quoteContentFrameLayout.findViewById(R.id.sender_name_tv);
 
@@ -80,16 +80,30 @@ public class QuoteMessageHolder extends TextMessageHolder {
     @Override
     public void layoutVariableViews(TUIMessageBean msg, int position) {
         extraInfoArea.setVisibility(View.VISIBLE);
-
+        applyCustomConfig();
         msg.setSelectText(msg.getExtra());
         QuoteMessageBean quoteMessageBean = (QuoteMessageBean) msg;
         TUIMessageBean replyContentBean = quoteMessageBean.getContentMessageBean();
         String replyContent = replyContentBean.getExtra();
         FaceManager.handlerEmojiText(timeInLineTextLayout.getTextView(), replyContent, false);
         String senderName = quoteMessageBean.getOriginMsgSender();
+        TUIMessageBean originMessage = quoteMessageBean.getOriginMessageBean();
+        if (originMessage != null) {
+            if (originMessage.isRevoked()) {
+                senderNameTv.setVisibility(View.GONE);
+            } else {
+                senderNameTv.setVisibility(View.VISIBLE);
+            }
+            senderName = originMessage.getUserDisplayName();
+        }
         senderNameTv.setText(senderName + ": ");
-
-        performMsgAbstract(quoteMessageBean);
+        setOnTimeInLineTextClickListener(msg);
+        if (quoteMessageBean.isAbstractEnable()) {
+            performMsgAbstract(quoteMessageBean);
+            quoteContentFrameLayout.setVisibility(View.VISIBLE);
+        } else {
+            quoteContentFrameLayout.setVisibility(View.GONE);
+        }
 
         msgArea.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
@@ -106,13 +120,10 @@ public class QuoteMessageHolder extends TextMessageHolder {
                 }
             }
         });
+        TextUtil.linkifyUrls(timeInLineTextLayout.getTextView());
         if (isForwardMode || isMessageDetailMode) {
             return;
         }
-        if (!TextUtils.isEmpty(replyContent)) {
-            FaceManager.handlerEmojiText(timeInLineTextLayout.getTextView(), replyContent, false);
-        }
-
         if (floatMode) {
             quoteContentFrameLayout.setVisibility(View.GONE);
         }
@@ -124,7 +135,11 @@ public class QuoteMessageHolder extends TextMessageHolder {
 
         TUIReplyQuoteBean replyQuoteBean = quoteMessageBean.getReplyQuoteBean();
         if (originMessage != null) {
-            performQuote(replyQuoteBean, quoteMessageBean);
+            if (originMessage.isRevoked()) {
+                performTextMessage(itemView.getResources().getString(R.string.chat_quote_origin_message_revoked));
+            } else {
+                performQuote(replyQuoteBean, quoteMessageBean);
+            }
         } else {
             performNotFound(replyQuoteBean, quoteMessageBean);
         }

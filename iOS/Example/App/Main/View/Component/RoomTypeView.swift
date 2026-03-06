@@ -2,7 +2,7 @@
 //  RoomTypeView.swift
 //  TUIRoomKit
 //
-//  Created by 唐佳宁 on 2023/1/6.
+//  Created by janejntang on 2023/1/6.
 //  Copyright © 2023 Tencent. All rights reserved.
 //
 
@@ -88,9 +88,9 @@ class RoomTypeView: UIView {
 
 private extension String {
     static var raiseHandSpeakText: String {
-        RoomDemoLocalize("Demo.TUIRoomKit.raise.speak.model")
+        RoomDemoLocalize("On-stage Speech Conference")
     }
     static var freedomSpeakText: String {
-        RoomDemoLocalize("Demo.TUIRoomKit.freedom.speak.model")
+        RoomDemoLocalize("Free Speech Conference")
     }
 }

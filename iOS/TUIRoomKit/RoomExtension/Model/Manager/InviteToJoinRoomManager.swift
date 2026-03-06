@@ -2,11 +2,11 @@
 //  InviteToJoinRoomManager.swift
 //  TUIRoomKit
 //
-//  Created by 唐佳宁 on 2023/7/3.
-//  可以选择邀请成员，并且发送邀请。
+//  Created by janejntang on 2023/7/3.
+//  You can choose to invite members and send invitations.
 
 import Foundation
-import TUIRoomEngine
+import RTCRoomEngine
 import TUICore
 
 class InviteToJoinRoomManager {
@@ -14,7 +14,7 @@ class InviteToJoinRoomManager {
         let inviteJoinModel = InviteJoinModel(message: message, inviter: inviter)
         pushSelectGroupMemberViewController(groupId: message.groupId) { responseData in
             guard let modelList =
-                    responseData[TUICore_TUIGroupObjectFactory_SelectGroupMemberVC_ResultUserList] as? [TUIUserModel]
+                    responseData[TUICore_TUIContactObjectFactory_SelectGroupMemberVC_ResultUserList] as? [TUIUserModel]
             else { return }
             var invitedList: [String] = []
             for userModel in modelList {
@@ -25,15 +25,15 @@ class InviteToJoinRoomManager {
     }
     
     class func pushSelectGroupMemberViewController(groupId: String, callback: @escaping TUIValueResultCallback) {
-        let param = [TUICore_TUIGroupObjectFactory_SelectGroupMemberVC_GroupID: groupId]
+        let param = [TUICore_TUIContactObjectFactory_SelectGroupMemberVC_GroupID: groupId]
         if let navigateController = RoomMessageManager.shared.navigateController {
-            navigateController.push(TUICore_TUIGroupObjectFactory_SelectGroupMemberVC_Classic, param: param) { responseData in
+            navigateController.push(TUICore_TUIContactObjectFactory_SelectGroupMemberVC_Classic, param: param) { responseData in
                 callback(responseData)
             }
         } else {
             let nav = UINavigationController()
             let currentViewController = getCurrentWindowViewController()
-            currentViewController?.present(TUICore_TUIGroupObjectFactory_SelectGroupMemberVC_Classic,
+            currentViewController?.present(TUICore_TUIContactObjectFactory_SelectGroupMemberVC_Classic,
                                            param: param, embbedIn: nav,
                                            forResult: { responseData in
                 callback(responseData)
@@ -44,10 +44,10 @@ class InviteToJoinRoomManager {
     class func inviteToJoinRoom(inviteJoinModel: InviteJoinModel, invitedList: [String]) {
         guard invitedList.count > 0 else { return }
         let dataDict = inviteJoinModel.getDicFromInviteJoinModel(inviteJoinModel: inviteJoinModel)
-        let dataString = dicValueString(dataDict)
+        guard let dataString = dataDict.convertToString() else { return }
         let pushInfo = V2TIMOfflinePushInfo()
         invitedList.forEach { userId in
-            V2TIMManager.sharedInstance().invite(userId,
+            V2TIMManager.sharedInstance().invite(invitee: userId,
                                                  data: dataString,
                                                  onlineUserOnly: true,
                                                  offlinePushInfo: pushInfo,
@@ -82,13 +82,5 @@ class InviteToJoinRoomManager {
         }
         let viewController = findCurrentController(from: rootController)
         return viewController
-    }
-    
-    //字典转成字符串
-    class private func dicValueString(_ dic:[String : Any]) -> String?{
-        let dicData = try? JSONSerialization.data(withJSONObject: dic, options: [])
-        guard let data = dicData else { return nil }
-        let str = String(data: data, encoding: String.Encoding.utf8)
-        return str
     }
 }

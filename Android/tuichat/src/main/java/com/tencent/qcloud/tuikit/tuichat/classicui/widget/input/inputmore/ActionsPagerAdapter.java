@@ -10,7 +10,7 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.tencent.qcloud.tuikit.tuichat.R;
-import com.tencent.qcloud.tuikit.tuichat.bean.InputMoreActionUnit;
+import com.tencent.qcloud.tuikit.tuichat.bean.InputMoreItem;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,10 +18,10 @@ import java.util.List;
 public class ActionsPagerAdapter extends RecyclerView.Adapter<ActionsPagerAdapter.ActionsViewHolder> {
     private static final int ITEM_COUNT_PER_GRID_VIEW = 8;
     private static final int COLUMN_COUNT = 4;
-    private final List<InputMoreActionUnit> mInputMoreList;
+    private final List<InputMoreItem> mInputMoreList;
     private final int mGridViewCount;
 
-    public ActionsPagerAdapter(List<InputMoreActionUnit> mInputMoreList) {
+    public ActionsPagerAdapter(List<InputMoreItem> mInputMoreList) {
         this.mInputMoreList = new ArrayList<>(mInputMoreList);
         this.mGridViewCount = (mInputMoreList.size() + ITEM_COUNT_PER_GRID_VIEW - 1) / ITEM_COUNT_PER_GRID_VIEW;
     }
@@ -37,15 +37,11 @@ public class ActionsPagerAdapter extends RecyclerView.Adapter<ActionsPagerAdapte
     @Override
     public void onBindViewHolder(@NonNull ActionsViewHolder holder, int position) {
         int end = (position + 1) * ITEM_COUNT_PER_GRID_VIEW > mInputMoreList.size() ? mInputMoreList.size() : (position + 1) * ITEM_COUNT_PER_GRID_VIEW;
-        List<InputMoreActionUnit> subBaseActions = mInputMoreList.subList(position * ITEM_COUNT_PER_GRID_VIEW, end);
+        List<InputMoreItem> subBaseActions = mInputMoreList.subList(position * ITEM_COUNT_PER_GRID_VIEW, end);
 
         GridView gridView = holder.gridView;
         holder.setActions(subBaseActions);
-        if (mInputMoreList.size() >= COLUMN_COUNT) {
-            gridView.setNumColumns(COLUMN_COUNT);
-        } else {
-            gridView.setNumColumns(mInputMoreList.size());
-        }
+        gridView.setNumColumns(COLUMN_COUNT);
         gridView.setSelector(R.color.transparent);
         gridView.setHorizontalSpacing(60);
         gridView.setVerticalSpacing(60);
@@ -76,7 +72,7 @@ public class ActionsPagerAdapter extends RecyclerView.Adapter<ActionsPagerAdapte
             gridView.setAdapter(adapter);
         }
 
-        public void setActions(List<InputMoreActionUnit> actions) {
+        public void setActions(List<InputMoreItem> actions) {
             adapter.setBaseActions(actions);
             adapter.notifyDataSetChanged();
         }

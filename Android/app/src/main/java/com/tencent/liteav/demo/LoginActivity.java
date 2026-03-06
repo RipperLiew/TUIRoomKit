@@ -4,6 +4,9 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
+import android.text.InputFilter;
+import android.text.Spanned;
+import android.text.TextUtils;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
@@ -12,8 +15,9 @@ import android.widget.EditText;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.tencent.cloud.tuikit.roomkit.utils.UserModel;
-import com.tencent.cloud.tuikit.roomkit.utils.UserModelManager;
+import com.tencent.cloud.tuikit.roomkit.view.basic.RoomToast;
+import com.tencent.cloud.tuikit.roomkit.common.utils.UserModel;
+import com.tencent.cloud.tuikit.roomkit.common.utils.UserModelManager;
 import com.tencent.liteav.debug.GenerateTestUserSig;
 
 import java.util.Random;
@@ -34,6 +38,8 @@ public class LoginActivity extends AppCompatActivity {
 
     private void initView() {
         mEditUserId = (EditText) findViewById(R.id.et_userId);
+        InputFilter[] filters = new InputFilter[]{new UserIdInputFilter()};
+        mEditUserId.setFilters(filters);
         initButtonLogin();
     }
 
@@ -49,6 +55,10 @@ public class LoginActivity extends AppCompatActivity {
 
     private void login() {
         String userId = mEditUserId.getText().toString().trim();
+        if (TextUtils.isEmpty(userId)) {
+            RoomToast.toastShortMessage(getString(R.string.app_user_id_empty_toast));
+            return;
+        }
         final UserModel userModel = new UserModel();
         userModel.userId = userId;
         int index = new Random().nextInt(AvatarConstant.USER_AVATAR_ARRAY.length);
@@ -70,6 +80,20 @@ public class LoginActivity extends AppCompatActivity {
             window.setStatusBarColor(Color.TRANSPARENT);
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+        }
+    }
+
+    public class UserIdInputFilter implements InputFilter {
+        private static final String regex = "^[a-zA-Z0-9\\-_]*$";
+
+        @Override
+        public CharSequence filter(CharSequence source, int start, int end, Spanned dest, int dstart, int dend) {
+            for (int i = start; i < end; i++) {
+                if (!String.valueOf(source.charAt(i)).matches(regex)) {
+                    return "";
+                }
+            }
+            return null;
         }
     }
 }

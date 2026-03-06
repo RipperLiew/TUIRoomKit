@@ -2,11 +2,6 @@ package com.tencent.qcloud.tuikit.tuichat.minimalistui.page;
 
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Matrix;
-import android.graphics.Paint;
-import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.text.TextUtils;
@@ -17,10 +12,8 @@ import android.view.inputmethod.InputMethodManager;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.util.Supplier;
+import androidx.fragment.app.Fragment;
 import com.bumptech.glide.Glide;
-import com.bumptech.glide.request.target.CustomTarget;
-import com.bumptech.glide.request.transition.Transition;
-import com.tencent.imsdk.v2.V2TIMManager;
 import com.tencent.imsdk.v2.V2TIMMessage;
 import com.tencent.qcloud.tuicore.TUIConfig;
 import com.tencent.qcloud.tuicore.TUIConstants;
@@ -28,15 +21,16 @@ import com.tencent.qcloud.tuicore.TUICore;
 import com.tencent.qcloud.tuicore.TUILogin;
 import com.tencent.qcloud.tuicore.util.ToastUtil;
 import com.tencent.qcloud.tuikit.timcommon.bean.TUIMessageBean;
-import com.tencent.qcloud.tuikit.timcommon.component.fragments.BaseFragment;
 import com.tencent.qcloud.tuikit.timcommon.component.interfaces.IUIKitCallback;
 import com.tencent.qcloud.tuikit.timcommon.interfaces.OnItemClickListener;
+import com.tencent.qcloud.tuikit.timcommon.util.ThreadUtils;
 import com.tencent.qcloud.tuikit.tuichat.R;
 import com.tencent.qcloud.tuikit.tuichat.TUIChatConstants;
 import com.tencent.qcloud.tuikit.tuichat.bean.ChatInfo;
 import com.tencent.qcloud.tuikit.tuichat.bean.message.CallingMessageBean;
 import com.tencent.qcloud.tuikit.tuichat.bean.message.MergeMessageBean;
-import com.tencent.qcloud.tuikit.tuichat.component.AudioPlayer;
+import com.tencent.qcloud.tuikit.tuichat.component.audio.AudioPlayer;
+import com.tencent.qcloud.tuikit.tuichat.config.minimalistui.TUIChatConfigMinimalist;
 import com.tencent.qcloud.tuikit.tuichat.minimalistui.widget.ChatView;
 import com.tencent.qcloud.tuikit.tuichat.minimalistui.widget.input.InputView;
 import com.tencent.qcloud.tuikit.tuichat.minimalistui.widget.message.MessageRecyclerView;
@@ -50,41 +44,32 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
-public class TUIBaseChatMinimalistFragment extends BaseFragment {
+public abstract class TUIBaseChatMinimalistFragment extends Fragment {
     private static final String TAG = TUIBaseChatMinimalistFragment.class.getSimpleName();
 
     protected View baseView;
 
     protected ChatView chatView;
-
+    protected ChatInfo chatInfo;
     private MessageRecyclerView messageRecyclerView;
-    private int messageViewBackgroundHeight;
     protected String mChatBackgroundUrl;
     protected String mChatBackgroundThumbnailUrl;
-
-    @Override
-    public void onCreate(@Nullable Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-    }
 
     @Nullable
     @Override
     public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, Bundle savedInstanceState) {
-        TUIChatLog.i(TAG, "oncreate view " + this);
+        TUIChatLog.i(TAG, "onCreateView " + this);
 
         baseView = inflater.inflate(R.layout.chat_minimalist_fragment, container, false);
-        //        // TODO 通过api设置ChatLayout各种属性的样例
-        //        // Example of setting various properties of ChatLayout through api
-        //        ChatLayoutSetting helper = new ChatLayoutSetting(getActivity());
-        //        helper.setGroupId(mChatInfo.getId());
-        //        helper.customizeChatLayout(mChatLayout);
         return baseView;
     }
 
     protected void initView() {
         chatView = baseView.findViewById(R.id.chat_layout);
         chatView.initDefault(TUIBaseChatMinimalistFragment.this);
+        messageRecyclerView = chatView.getMessageLayout();
 
         chatView.setOnBackClickListener(new View.OnClickListener() {
             @Override
@@ -117,97 +102,37 @@ public class TUIBaseChatMinimalistFragment extends BaseFragment {
         chatView.getMessageLayout().setOnItemClickListener(new OnItemClickListener() {
             @Override
             public void onMessageLongClick(View view, TUIMessageBean message) {
-                chatView.getMessageLayout().showItemPopMenu(message, view);
+                onMessageLongClicked(view, message);
             }
 
             @Override
             public void onMessageClick(View view, TUIMessageBean messageBean) {
-                if (messageBean instanceof MergeMessageBean) {
-                    if (getChatInfo() == null) {
-                        return;
-                    }
-                    Intent intent = new Intent(view.getContext(), TUIForwardChatMinimalistActivity.class);
-                    intent.putExtra(TUIChatConstants.FORWARD_MERGE_MESSAGE_KEY, messageBean);
-                    intent.putExtra(TUIChatConstants.CHAT_INFO, getChatInfo());
-                    startActivity(intent);
-                }
+                onMessageClicked(view, messageBean);
             }
 
             @Override
             public void onUserIconClick(View view, TUIMessageBean message) {
-                if (null == message) {
-                    return;
-                }
-                String userID = null;
-                if (message.getV2TIMMessage().getGroupID() != null) {
-                    userID = message.getSender();
-                } else {
-                    if (message.isUseMsgReceiverAvatar()) {
-                        if (message.getV2TIMMessage().isSelf()) {
-                            userID = message.getV2TIMMessage().getUserID();
-                        } else {
-                            userID = V2TIMManager.getInstance().getLoginUser();
-                        }
-                    } else {
-                        userID = message.getSender();
-                    }
-                }
-                if (null == userID) {
-                    return;
-                }
+                onUserIconClicked(message);
+            }
 
-                Bundle bundle = new Bundle();
-                bundle.putString(TUIConstants.TUIChat.CHAT_ID, userID);
-                TUICore.startActivity("FriendProfileMinimalistActivity", bundle);
+            @Override
+            public void onUserIconLongClick(View view, TUIMessageBean messageBean) {
+                onUserIconLongClicked(messageBean);
             }
 
             @Override
             public void onReEditRevokeMessage(View view, TUIMessageBean messageInfo) {
-                if (messageInfo == null) {
-                    return;
-                }
-                int messageType = messageInfo.getMsgType();
-                if (messageType == V2TIMMessage.V2TIM_ELEM_TYPE_TEXT) {
-                    chatView.getInputLayout().appendText(messageInfo.getV2TIMMessage().getTextElem().getText());
-                } else {
-                    TUIChatLog.e(TAG, "error type: " + messageType);
-                }
+                onReEditMessageClicked(messageInfo);
             }
 
             @Override
             public void onRecallClick(View view, TUIMessageBean messageInfo) {
-                if (messageInfo == null) {
-                    return;
-                }
-                CallingMessageBean callingMessageBean = (CallingMessageBean) messageInfo;
-                String callTypeString = "";
-                int callType = callingMessageBean.getCallType();
-                if (callType == CallingMessageBean.ACTION_ID_VIDEO_CALL) {
-                    callTypeString = TUIConstants.TUICalling.TYPE_VIDEO;
-                } else if (callType == CallingMessageBean.ACTION_ID_AUDIO_CALL) {
-                    callTypeString = TUIConstants.TUICalling.TYPE_AUDIO;
-                }
-                Map<String, Object> map = new HashMap<>();
-                map.put(TUIConstants.TUICalling.PARAM_NAME_USERIDS, new String[] {messageInfo.getUserId()});
-                map.put(TUIConstants.TUICalling.PARAM_NAME_TYPE, callTypeString);
-                TUICore.callService(TUIConstants.TUICalling.SERVICE_NAME, TUIConstants.TUICalling.METHOD_NAME_CALL, map);
-            }
-
-            @Override
-            public void onTextSelected(View view, int position, TUIMessageBean messageInfo) {
-                chatView.getMessageLayout().setSelectedPosition(position);
-                chatView.getMessageLayout().showItemPopMenu(messageInfo, view);
+                onRecallClicked(messageInfo);
             }
 
             @Override
             public void onMessageReadStatusClick(View view, TUIMessageBean messageBean) {
-                if (getChatInfo() != null) {
-                    Intent intent = new Intent(getContext(), MessageDetailMinimalistActivity.class);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    intent.putExtra(TUIChatConstants.MESSAGE_BEAN, messageBean);
-                    intent.putExtra(TUIChatConstants.CHAT_INFO, getChatInfo());
-                    startActivity(intent);
-                }
+                onMessageReadStatusClicked(messageBean);
             }
         });
 
@@ -216,7 +141,7 @@ public class TUIBaseChatMinimalistFragment extends BaseFragment {
             public void onStartGroupMemberSelectActivity() {
                 Bundle param = new Bundle();
                 param.putString(TUIConstants.TUIContact.StartActivity.GroupMemberSelect.GROUP_ID, getChatInfo().getId());
-                TUICore.startActivityForResult(TUIBaseChatMinimalistFragment.this, "StartGroupMemberSelectActivity", param, result -> {
+                TUICore.startActivityForResult(TUIBaseChatMinimalistFragment.this, "StartGroupMemberSelectMinimalistActivity", param, result -> {
                     if (result.getData() != null) {
                         ArrayList<String> resultIds = result.getData().getStringArrayListExtra(TUIChatConstants.Selection.USER_ID_SELECT);
                         ArrayList<String> resultNames = result.getData().getStringArrayListExtra(TUIChatConstants.Selection.USER_NAMECARD_SELECT);
@@ -229,17 +154,82 @@ public class TUIBaseChatMinimalistFragment extends BaseFragment {
             public void onClickCapture() {
                 startCapture();
             }
-
-            @Override
-            public void onUpdateChatBackground() {
-                setChatViewBackground(mChatBackgroundUrl);
-            }
         });
-
-        messageRecyclerView = chatView.getMessageLayout();
     }
 
-    private void selectConversationsToForwardMessages(Supplier<List<TUIMessageBean>> messageBeans, int forwardMode) {
+    private void onMessageReadStatusClicked(TUIMessageBean messageBean) {
+        if (getChatInfo() != null) {
+            Intent intent = new Intent(getContext(), MessageDetailMinimalistActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            intent.putExtra(TUIChatConstants.MESSAGE_BEAN, messageBean);
+            intent.putExtra(TUIChatConstants.CHAT_INFO, getChatInfo());
+            startActivity(intent);
+        }
+    }
+
+    protected void onRecallClicked(TUIMessageBean messageInfo) {
+        if (messageInfo == null || TextUtils.isEmpty(messageInfo.getUserId())) {
+            return;
+        }
+        CallingMessageBean callingMessageBean = (CallingMessageBean) messageInfo;
+        String callTypeString = "";
+        int callType = callingMessageBean.getCallType();
+        if (callType == CallingMessageBean.ACTION_ID_VIDEO_CALL) {
+            callTypeString = TUIConstants.TUICalling.TYPE_VIDEO;
+        } else if (callType == CallingMessageBean.ACTION_ID_AUDIO_CALL) {
+            callTypeString = TUIConstants.TUICalling.TYPE_AUDIO;
+        }
+        Map<String, Object> map = new HashMap<>();
+        map.put(TUIConstants.TUICalling.PARAM_NAME_USERIDS, new String[] {messageInfo.getUserId()});
+        map.put(TUIConstants.TUICalling.PARAM_NAME_TYPE, callTypeString);
+        TUICore.callService(TUIConstants.TUICalling.SERVICE_NAME, TUIConstants.TUICalling.METHOD_NAME_CALL, map);
+    }
+
+    protected void onReEditMessageClicked(TUIMessageBean messageInfo) {
+        if (messageInfo == null) {
+            return;
+        }
+        int messageType = messageInfo.getMsgType();
+        if (messageType == V2TIMMessage.V2TIM_ELEM_TYPE_TEXT) {
+            chatView.getInputLayout().appendText(messageInfo.getV2TIMMessage().getTextElem().getText());
+        } else {
+            TUIChatLog.e(TAG, "error type: " + messageType);
+        }
+    }
+
+    protected void onUserIconLongClicked(TUIMessageBean messageBean) {}
+
+    protected void onUserIconClicked(TUIMessageBean message) {
+        if (null == message) {
+            return;
+        }
+        String userID = message.getSender();
+        if (TextUtils.isEmpty(userID)) {
+            return;
+        }
+
+        Bundle bundle = new Bundle();
+        bundle.putString(TUIConstants.TUIChat.CHAT_ID, userID);
+        TUICore.startActivity("FriendProfileMinimalistActivity", bundle);
+    }
+
+    protected void onMessageClicked(View view, TUIMessageBean messageBean) {
+        if (messageBean instanceof MergeMessageBean) {
+            if (getChatInfo() == null) {
+                return;
+            }
+            Intent intent = new Intent(view.getContext(), TUIForwardChatMinimalistActivity.class);
+            intent.putExtra(TUIChatConstants.FORWARD_MERGE_MESSAGE_KEY, messageBean);
+            intent.putExtra(TUIChatConstants.CHAT_INFO, getChatInfo());
+            startActivity(intent);
+        }
+    }
+
+    protected void onMessageLongClicked(View view, TUIMessageBean message) {
+        chatView.getMessageLayout().showItemPopMenu(message, view);
+    }
+
+    protected void selectConversationsToForwardMessages(Supplier<List<TUIMessageBean>> messageBeans, int forwardMode) {
         TUICore.startActivityForResult(TUIBaseChatMinimalistFragment.this, "TUIForwardSelectMinimalistActivity", null, result -> {
             Intent data = result.getData();
             if (data != null) {
@@ -304,12 +294,63 @@ public class TUIBaseChatMinimalistFragment extends BaseFragment {
         return title;
     }
 
-    public ChatInfo getChatInfo() {
-        return null;
+    protected void initChatViewBackground() {
+        if (getChatInfo() == null) {
+            TUIChatLog.e(TAG, "initChatViewBackground getChatInfo is null");
+            return;
+        }
+
+        Drawable chatBackground = TUIChatConfigMinimalist.getBackground();
+        if (chatBackground != null) {
+            setChatBackground(chatBackground);
+            return;
+        }
+
+        DataStoreUtil.getInstance().getValueAsync(getChatInfo().getId(), new DataStoreUtil.GetResult<String>() {
+            @Override
+            public void onSuccess(String result) {
+                setChatViewBackground(result);
+            }
+
+            @Override
+            public void onFail() {
+                TUIChatLog.w(TAG, "Chat background not found");
+            }
+        }, String.class);
     }
 
-    public ChatView getChatView() {
-        return chatView;
+    protected void setChatViewBackground(String uri) {
+        if (TextUtils.isEmpty(uri)) {
+            return;
+        }
+
+        String[] list = uri.split(",");
+        if (list.length > 0) {
+            mChatBackgroundThumbnailUrl = list[0];
+        }
+
+        if (list.length > 1) {
+            mChatBackgroundUrl = list[1];
+        }
+
+        if (TextUtils.equals(TUIConstants.TUIChat.CHAT_CONVERSATION_BACKGROUND_DEFAULT_URL, mChatBackgroundUrl)) {
+            mChatBackgroundThumbnailUrl = TUIConstants.TUIChat.CHAT_CONVERSATION_BACKGROUND_DEFAULT_URL;
+            messageRecyclerView.setBackgroundResource(R.color.chat_background_color);
+            return;
+        }
+
+        setChatBackground(mChatBackgroundUrl);
+    }
+
+    private void setChatBackground(Object backgroundRes) {
+        ThreadUtils.execute(() -> {
+            try {
+                Drawable drawable = Glide.with(baseView.getContext()).asDrawable().load(backgroundRes).submit().get();
+                chatView.setChatBackground(drawable);
+            } catch (ExecutionException | InterruptedException e) {
+                TUIChatLog.e(TAG, "load background failed");
+            }
+        });
     }
 
     @Override
@@ -344,107 +385,17 @@ public class TUIBaseChatMinimalistFragment extends BaseFragment {
         }
     }
 
+    protected void startCapture() {
+        chatView.getInputLayout().startCaptureCheckPermission();
+    }
+
     public ChatPresenter getPresenter() {
         return null;
     }
 
-    protected void initChatViewBackground() {
-        if (getChatInfo() == null) {
-            TUIChatLog.e(TAG, "initChatViewBackground getChatInfo is null");
-            return;
-        }
-        DataStoreUtil.getInstance().getValueAsync(getChatInfo().getId(), new DataStoreUtil.GetResult<String>() {
-            @Override
-            public void onSuccess(String result) {
-                setChatViewBackground(result);
-            }
+    public abstract ChatInfo getChatInfo();
 
-            @Override
-            public void onFail() {
-                TUIChatLog.e(TAG, "initChatViewBackground onFail");
-            }
-        }, String.class);
-    }
-
-    protected void setChatViewBackground(String uri) {
-        TUIChatLog.d(TAG, "setChatViewBackground uri = " + uri);
-        if (TextUtils.isEmpty(uri)) {
-            return;
-        }
-
-        if (chatView == null) {
-            TUIChatLog.e(TAG, "setChatViewBackground chatview is null");
-            return;
-        }
-
-        if (messageRecyclerView == null) {
-            TUIChatLog.e(TAG, "setChatViewBackground messageRecyclerView is null");
-            return;
-        }
-
-        String[] list = uri.split(",");
-        if (list.length > 0) {
-            mChatBackgroundThumbnailUrl = list[0];
-        }
-
-        if (list.length > 1) {
-            mChatBackgroundUrl = list[1];
-        }
-
-        if (TextUtils.equals(TUIConstants.TUIChat.CHAT_CONVERSATION_BACKGROUND_DEFAULT_URL, mChatBackgroundUrl)) {
-            mChatBackgroundThumbnailUrl = TUIConstants.TUIChat.CHAT_CONVERSATION_BACKGROUND_DEFAULT_URL;
-            messageRecyclerView.setBackgroundResource(R.color.chat_background_color);
-            return;
-        }
-
-        messageRecyclerView.post(new Runnable() {
-            @Override
-            public void run() {
-                int imageWidth = messageRecyclerView.getWidth();
-                int imageHeight = messageRecyclerView.getHeight();
-                if (imageHeight > messageViewBackgroundHeight) {
-                    messageViewBackgroundHeight = imageHeight;
-                }
-                TUIChatLog.d(TAG, "messageRecyclerView  width = " + imageWidth + ", height = " + messageViewBackgroundHeight);
-                if (imageWidth == 0 || messageViewBackgroundHeight == 0) {
-                    return;
-                }
-                Glide.with(getContext()).asBitmap().load(mChatBackgroundUrl).into(new CustomTarget<Bitmap>(imageWidth, messageViewBackgroundHeight) {
-                    @Override
-                    public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
-                        TUIChatLog.d(TAG, "messageRecyclerView onGlobalLayout url = " + mChatBackgroundUrl);
-                        Bitmap srcBitmap = zoomImg(resource, imageWidth, messageViewBackgroundHeight);
-                        messageRecyclerView.setBackground(new BitmapDrawable(getResources(), resource) {
-                            @Override
-                            public void draw(@NonNull Canvas canvas) {
-                                // TUIChatLog.d(TAG, "draw canvas =" + canvas.getClipBounds());
-                                canvas.drawBitmap(srcBitmap, canvas.getClipBounds(), canvas.getClipBounds(), null);
-                            }
-                        });
-                    }
-
-                    @Override
-                    public void onLoadCleared(@Nullable Drawable placeholder) {}
-                });
-            }
-        });
-    }
-
-    private Bitmap zoomImg(Bitmap bm, int targetWidth, int targetHeight) {
-        int srcWidth = bm.getWidth();
-        int srcHeight = bm.getHeight();
-        float widthScale = targetWidth * 1.0f / srcWidth;
-        float heightScale = targetHeight * 1.0f / srcHeight;
-        Matrix matrix = new Matrix();
-        matrix.postScale(widthScale, heightScale, 0, 0);
-        Bitmap bmpRet = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.RGB_565);
-        Canvas canvas = new Canvas(bmpRet);
-        Paint paint = new Paint();
-        canvas.drawBitmap(bm, matrix, paint);
-        return bmpRet;
-    }
-
-    protected void startCapture() {
-        chatView.getInputLayout().startCaptureCheckPermission();
+    public ChatView getChatView() {
+        return chatView;
     }
 }

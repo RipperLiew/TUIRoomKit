@@ -1,6 +1,7 @@
 package com.tencent.qcloud.tuikit.tuichat.classicui.widget.message.viewholder;
 
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
@@ -15,6 +16,7 @@ import com.tencent.qcloud.tuikit.timcommon.component.face.FaceManager;
 import com.tencent.qcloud.tuikit.timcommon.component.impl.GlideEngine;
 import com.tencent.qcloud.tuikit.timcommon.util.FileUtil;
 import com.tencent.qcloud.tuikit.timcommon.util.ScreenUtil;
+import com.tencent.qcloud.tuikit.timcommon.util.TextUtil;
 import com.tencent.qcloud.tuikit.tuichat.R;
 import com.tencent.qcloud.tuikit.tuichat.bean.message.ImageMessageBean;
 import com.tencent.qcloud.tuikit.tuichat.bean.message.QuoteMessageBean;
@@ -56,7 +58,6 @@ public class QuoteMessageHolder extends TextMessageHolder {
     public QuoteMessageHolder(View itemView) {
         super(itemView);
         quoteContentFrameLayout = itemView.findViewById(com.tencent.qcloud.tuikit.timcommon.R.id.quote_content_fl);
-        quoteContentFrameLayout.setVisibility(View.VISIBLE);
         LayoutInflater.from(itemView.getContext()).inflate(R.layout.quote_message_content_layout, quoteContentFrameLayout);
         senderNameTv = quoteContentFrameLayout.findViewById(R.id.sender_name_tv);
 
@@ -86,19 +87,26 @@ public class QuoteMessageHolder extends TextMessageHolder {
         TUIMessageBean replyContentBean = quoteMessageBean.getContentMessageBean();
         String replyContent = replyContentBean.getExtra();
         String senderName = quoteMessageBean.getOriginMsgSender();
+        TUIMessageBean originMessage = quoteMessageBean.getOriginMessageBean();
+        if (originMessage != null) {
+            if (originMessage.isRevoked()) {
+                senderNameTv.setVisibility(View.GONE);
+            } else {
+                senderNameTv.setVisibility(View.VISIBLE);
+            }
+            senderName = originMessage.getUserDisplayName();
+        }
         senderNameTv.setText(senderName + ": ");
 
         FaceManager.handlerEmojiText(msgBodyText, replyContent, false);
 
-        performMsgAbstract(quoteMessageBean);
-
-        msgArea.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                selectableTextHelper.selectAll();
-                return true;
-            }
-        });
+        if (quoteMessageBean.isAbstractEnable()) {
+            performMsgAbstract(quoteMessageBean);
+            quoteContentFrameLayout.setVisibility(View.VISIBLE);
+        } else {
+            senderNameTv.setVisibility(View.GONE);
+            quoteContentFrameLayout.setVisibility(View.GONE);
+        }
 
         quoteContentFrameLayout.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -108,11 +116,30 @@ public class QuoteMessageHolder extends TextMessageHolder {
                 }
             }
         });
+
         setThemeColor(msg);
+        TextUtil.linkifyUrls(msgBodyText);
+        msgBodyText.setActivated(true);
+
         if (isForwardMode || isReplyDetailMode) {
             return;
         }
-        setSelectableTextHelper(msg, msgBodyText, position);
+        msgArea.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                selectionHelper.selectAll();
+                return true;
+            }
+        });
+        msgBodyText.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (onItemClickListener != null) {
+                    onItemClickListener.onMessageClick(v, msg);
+                }
+            }
+        });
+        setSelectionHelper(msg, msgBodyText, position);
     }
 
     private void setThemeColor(TUIMessageBean messageBean) {
@@ -133,18 +160,22 @@ public class QuoteMessageHolder extends TextMessageHolder {
 
         TUIReplyQuoteBean replyQuoteBean = quoteMessageBean.getReplyQuoteBean();
         if (originMessage != null) {
-            if (replyQuoteBean != null && replyQuoteBean.hasRiskContent()) {
-                String originAbstract = itemView.getResources().getString(R.string.chat_risk_content);
-                if (replyQuoteBean instanceof SoundReplyQuoteBean) {
-                    originAbstract = itemView.getResources().getString(R.string.chat_risk_sound);
-                } else if (replyQuoteBean instanceof ImageReplyQuoteBean) {
-                    originAbstract = itemView.getResources().getString(R.string.chat_risk_image);
-                } else if (replyQuoteBean instanceof VideoReplyQuoteBean) {
-                    originAbstract = itemView.getResources().getString(R.string.chat_risk_video);
-                }
-                performTextMessage(originAbstract);
+            if (originMessage.isRevoked()) {
+                performTextMessage(itemView.getResources().getString(R.string.chat_quote_origin_message_revoked));
             } else {
-                performQuote(replyQuoteBean, quoteMessageBean);
+                if (replyQuoteBean != null && replyQuoteBean.hasRiskContent()) {
+                    String originAbstract = itemView.getResources().getString(R.string.chat_risk_content);
+                    if (replyQuoteBean instanceof SoundReplyQuoteBean) {
+                        originAbstract = itemView.getResources().getString(R.string.chat_risk_sound);
+                    } else if (replyQuoteBean instanceof ImageReplyQuoteBean) {
+                        originAbstract = itemView.getResources().getString(R.string.chat_risk_image);
+                    } else if (replyQuoteBean instanceof VideoReplyQuoteBean) {
+                        originAbstract = itemView.getResources().getString(R.string.chat_risk_video);
+                    }
+                    performTextMessage(originAbstract);
+                } else {
+                    performQuote(replyQuoteBean, quoteMessageBean);
+                }
             }
         } else {
             performNotFound(replyQuoteBean, quoteMessageBean);

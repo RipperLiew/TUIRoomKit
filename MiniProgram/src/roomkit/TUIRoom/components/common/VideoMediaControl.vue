@@ -5,17 +5,12 @@
   * @param isDisabled boolean Whether the video is disabled or not
   * Usage:
   * Use <video-media-control :isMuted="isMuted" /> in the template
-  *
-  * 名称: VideoMediaControl 视频媒体操作组件（开关摄像头）
-  * @param hasMore boolean 是否展示【更多】icon, 可以切换摄像头
-  * @param isMuted boolean 视频是否被静画状态
-  * @param isDisabled boolean 视频是否 disabled 状态
-  * 使用方式：
-  * 在 template 中使用 <video-media-control :isMuted="isMuted" />
 -->
 <template>
   <div>
-    <div class="video-control-container">
+    <div
+      class="video-control-container"
+    >
       <icon-button
         :title="t('Camera')"
         :has-more="hasMore"
@@ -24,14 +19,13 @@
         @click-icon="handleClickIcon"
         @click-more="handleMore"
       >
-        <svg-icon style="display: flex" :icon="icon"></svg-icon>
+        <svg-icon style="display: flex" :icon="icon" />
       </icon-button>
       <video-setting-tab
         v-show="showVideoSettingTab"
         class="video-tab"
         :with-mirror="true"
-        theme="white"
-      ></video-setting-tab>
+      />
     </div>
   </div>
 </template>
@@ -45,12 +39,15 @@ import CameraOnIcon from '../../assets/icons/CameraOnIcon.svg';
 import CameraOffIcon from '../../assets/icons/CameraOffIcon.svg';
 import VideoSettingTab from '../common/VideoSettingTab.vue';
 import { useI18n } from '../../locales';
-import { isGetUserMediaSupported, isEnumerateDevicesSupported } from '../../utils/mediaAbility';
+import {
+  isGetUserMediaSupported,
+  isEnumerateDevicesSupported,
+} from '../../utils/mediaAbility';
 
 interface Props {
-  hasMore?: boolean,
-  isMuted: boolean,
-  isDisabled?: boolean,
+  hasMore?: boolean;
+  isMuted: boolean;
+  isDisabled?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -63,7 +60,8 @@ const emits = defineEmits(['click']);
 
 const { t } = useI18n();
 const showVideoSettingTab: Ref<boolean> = ref(false);
-const isSupportVideoMedia = isGetUserMediaSupported && isEnumerateDevicesSupported;
+const isSupportVideoMedia =
+  isGetUserMediaSupported && isEnumerateDevicesSupported;
 
 const icon = computed(() => (props.isMuted ? CameraOffIcon : CameraOnIcon));
 
@@ -72,7 +70,6 @@ async function handleClickIcon() {
     TUIMessageBox({
       title: t('Note'),
       message: t('The current browser does not support capturing video'),
-      appendToRoomContainer: true,
       confirmButtonText: t('Sure'),
     });
     return;
@@ -90,36 +87,36 @@ function handleHideVideoSettingTab() {
     showVideoSettingTab.value = false;
   }
 }
-
 </script>
 
 <style lang="scss" scoped>
-
 $videoTabWidth: 305px;
 
 .video-control-container {
   position: relative;
+
   .video-tab {
     position: absolute;
     bottom: calc(100% + 12px);
     left: -5px;
     width: $videoTabWidth;
-    background: var(--background-color-1);
-    padding: 20px 20px 24px 20px;
-    border-radius: 8px;
+    padding: 20px 20px 24px;
     box-shadow:
-      0px 2px 4px -3px rgba(32, 77, 141, 0.03),
-      0px 6px 10px 1px rgba(32, 77, 141, 0.06),
-      0px 3px 14px 2px rgba(32, 77, 141, 0.05);
+      0 2px 4px -3px var(--uikit-color-black-8),
+      0 6px 10px 1px var(--uikit-color-black-8),
+      0 3px 14px 2px var(--uikit-color-black-8);
+    border-radius: 8px;
+    background-color: var(--bg-color-dialog);
+
     &::before {
-      content: '';
       position: absolute;
-      left: 30px;
       bottom: -10px;
-      border-top: 5px solid var(--background-color-1);
-      border-left: 5px solid transparent;
+      left: 30px;
+      content: '';
       border-right: 5px solid transparent;
       border-bottom: 5px solid transparent;
+      border-left: 5px solid transparent;
+      border-top: 5px solid var(--bg-color-dialog);
     }
   }
 }

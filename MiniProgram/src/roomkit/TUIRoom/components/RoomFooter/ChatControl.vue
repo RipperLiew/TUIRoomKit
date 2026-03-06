@@ -1,12 +1,16 @@
 <template>
-  <div class="chat-control-container">
-    <tui-badge :hidden="chatStore.unReadCount === 0" :value="chatStore.unReadCount" :max="10">
+  <div v-if="chatControlConfig.visible" class="chat-control-container">
+    <tui-badge
+      :hidden="chatStore.unReadCount === 0"
+      :value="chatStore.unReadCount"
+      :max="10"
+    >
       <icon-button
         :title="t('Chat')"
         :icon="ChatIcon"
         :is-active="sidebarName === 'chat'"
         @click-icon="toggleChatSidebar"
-      ></icon-button>
+      />
     </tui-badge>
   </div>
 </template>
@@ -19,8 +23,9 @@ import { useChatStore } from '../../stores/chat';
 import { storeToRefs } from 'pinia';
 import { useI18n } from '../../locales';
 import TuiBadge from '../common/base/Badge.vue';
+import { roomService, MetricsKey } from '../../services';
 const { t } = useI18n();
-
+const chatControlConfig = roomService.getComponentConfig('ChatControl');
 const basicStore = useBasicStore();
 const chatStore = useChatStore();
 const { sidebarName } = storeToRefs(basicStore);
@@ -34,5 +39,7 @@ async function toggleChatSidebar() {
   basicStore.setSidebarOpenStatus(true);
   basicStore.setSidebarName('chat');
   chatStore.updateUnReadCount(0);
+  roomService.dataReportManager.reportCount(MetricsKey.openChat);
+  roomService.trackingManager.sendMessage('experience-chat');
 }
 </script>

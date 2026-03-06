@@ -1,5 +1,8 @@
 package com.tencent.qcloud.tuikit.timcommon.minimalistui.widget.message;
 
+import android.app.Activity;
+import android.content.Context;
+import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
@@ -8,9 +11,11 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-
+import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.RecyclerView;
-
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.RequestBuilder;
+import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
 import com.tencent.imsdk.v2.V2TIMManager;
 import com.tencent.imsdk.v2.V2TIMMessage;
 import com.tencent.imsdk.v2.V2TIMUserFullInfo;
@@ -19,19 +24,17 @@ import com.tencent.qcloud.tuicore.TUIConstants;
 import com.tencent.qcloud.tuicore.TUICore;
 import com.tencent.qcloud.tuicore.TUIThemeManager;
 import com.tencent.qcloud.tuikit.timcommon.R;
-import com.tencent.qcloud.tuikit.timcommon.bean.MessageReactBean;
 import com.tencent.qcloud.tuikit.timcommon.bean.MessageRepliesBean;
 import com.tencent.qcloud.tuikit.timcommon.bean.TUIMessageBean;
 import com.tencent.qcloud.tuikit.timcommon.component.UnreadCountTextView;
-import com.tencent.qcloud.tuikit.timcommon.component.fragments.BaseFragment;
-import com.tencent.qcloud.tuikit.timcommon.component.gatherimage.UserIconView;
+import com.tencent.qcloud.tuikit.timcommon.config.minimalistui.TUIConfigMinimalist;
 import com.tencent.qcloud.tuikit.timcommon.util.DateTimeUtil;
 import com.tencent.qcloud.tuikit.timcommon.util.ScreenUtil;
-
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public abstract class MessageContentHolder extends MessageBaseHolder {
     protected static final int READ_STATUS_UNREAD = 1;
@@ -40,8 +43,8 @@ public abstract class MessageContentHolder extends MessageBaseHolder {
     protected static final int READ_STATUS_HIDE = 4;
     protected static final int READ_STATUS_SENDING = 5;
 
-    public UserIconView leftUserIcon;
-    public UserIconView rightUserIcon;
+    public ImageView leftUserIcon;
+    public ImageView rightUserIcon;
     public TextView usernameText;
     public LinearLayout msgContentLinear;
     public ImageView messageStatusImage;
@@ -55,17 +58,18 @@ public abstract class MessageContentHolder extends MessageBaseHolder {
     public boolean isMultiSelectMode = false;
     public boolean isOptimize = true;
     public boolean isShowSelfAvatar = false;
+    protected boolean isShowAvatar = true;
 
     protected TimeInLineTextLayout timeInLineTextLayout;
     protected MinimalistMessageLayout rootLayout;
     protected ReplyPreviewView replyPreviewView;
 
     private List<TUIMessageBean> mDataSource = new ArrayList<>();
-    // 是否显示底部的内容。合并转发的消息详情界面不用展示底部内容。
+
     // Whether to display the bottom content. The merged-forwarded message details activity does not display the bottom content.
     protected boolean isNeedShowBottom = true;
     protected boolean isShowRead = false;
-    private BaseFragment fragment;
+    private Fragment fragment;
     private RecyclerView recyclerView;
 
     public MessageContentHolder(View itemView) {
@@ -83,7 +87,7 @@ public abstract class MessageContentHolder extends MessageBaseHolder {
         bottomContentFrameLayout = itemView.findViewById(R.id.bottom_content_fl);
     }
 
-    public void setFragment(BaseFragment fragment) {
+    public void setFragment(Fragment fragment) {
         this.fragment = fragment;
     }
 
@@ -112,80 +116,68 @@ public abstract class MessageContentHolder extends MessageBaseHolder {
 
     @Override
     public void layoutViews(final TUIMessageBean msg, final int position) {
+        Context context = itemView.getContext();
+        if (context instanceof Activity) {
+            if (((Activity) context).isDestroyed()) {
+                return;
+            }
+        }
+
         super.layoutViews(msg, position);
+        setLayoutAlignment(msg);
+        setIsShowAvatar(msg, position);
+        setMessageGravity();
+        setUserNameText(msg);
+        setMessageBubbleBackground();
+        setMessageStatusImage(msg);
+        setMessageTimeVisibility();
+        setAvatarVisibility();
+        setEventListener(msg);
 
-        if (isForwardMode || isMessageDetailMode) {
-            isShowStart = true;
-        } else {
-            if (msg.isSelf()) {
-                isShowStart = false;
+        msgContentLinear.setVisibility(View.VISIBLE);
+
+        if (!isForwardMode && !isMessageDetailMode) {
+            setTimeInLineStatus(msg);
+            setShowReadStatusClickListener(msg);
+        }
+        if (timeInLineTextLayout != null && timeInLineTextLayout.getTextView() != null) {
+            if (isMultiSelectMode) {
+                timeInLineTextLayout.getTextView().setActivated(false);
             } else {
-                isShowStart = true;
+                timeInLineTextLayout.getTextView().setActivated(true);
             }
         }
 
-        setMessageGravity(msg);
+        if (timeInLineTextLayout != null) {
+            timeInLineTextLayout.setTimeText(DateTimeUtil.getHMTimeString(new Date(msg.getMessageTime() * 1000)));
+        }
 
-        if (isForwardMode || isMessageDetailMode) {
+        extraInfoArea.setVisibility(View.GONE);
+        setReplyContent(msg);
+        setReactContent(msg);
+        if (isNeedShowBottom) {
+            setBottomContent(msg);
+        }
+        setMessageBubbleDefaultPadding();
+        if (floatMode) {
+            itemView.setPaddingRelative(0, 0, 0, 0);
+            leftUserIcon.setVisibility(View.GONE);
+            rightUserIcon.setVisibility(View.GONE);
             usernameText.setVisibility(View.GONE);
-        } else {
-            if (msg.isSelf()) {
-                if (properties.getRightNameVisibility() == 0) {
-                    usernameText.setVisibility(View.GONE);
-                } else {
-                    usernameText.setVisibility(properties.getRightNameVisibility());
-                }
-            } else {
-                if (properties.getLeftNameVisibility() == 0) {
-                    if (msg.isGroup()) {
-                        usernameText.setVisibility(View.GONE);
-                    } else {
-                        usernameText.setVisibility(View.GONE);
-                    }
-                } else {
-                    usernameText.setVisibility(properties.getLeftNameVisibility());
-                }
-            }
+            replyPreviewView.setVisibility(View.GONE);
+            reactionArea.setVisibility(View.GONE);
         }
-        if (properties.getNameFontColor() != 0) {
-            usernameText.setTextColor(properties.getNameFontColor());
-        }
-        if (properties.getNameFontSize() != 0) {
-            usernameText.setTextSize(properties.getNameFontSize());
+        if (isMessageDetailMode) {
+            replyPreviewView.setVisibility(View.GONE);
         }
 
-        if (!TextUtils.isEmpty(msg.getNameCard())) {
-            usernameText.setText(msg.getNameCard());
-        } else if (!TextUtils.isEmpty(msg.getFriendRemark())) {
-            usernameText.setText(msg.getFriendRemark());
-        } else if (!TextUtils.isEmpty(msg.getNickName())) {
-            usernameText.setText(msg.getNickName());
-        } else {
-            usernameText.setText(msg.getSender());
-        }
+        optimizePadding(position, msg);
+        loadAvatar(msg);
+        layoutVariableViews(msg, position);
+    }
 
-        if (isForwardMode) {
-            chatTimeText.setVisibility(View.GONE);
-        }
-
-        if (isForwardMode || isMessageDetailMode) {
-            setMessageBubbleBackground(R.drawable.chat_message_popup_stroke_border_left);
-            messageStatusImage.setVisibility(View.GONE);
-        } else {
-            if (msg.isSelf()) {
-                if (properties.getRightBubble() != null && properties.getRightBubble().getConstantState() != null) {
-                    setMessageBubbleBackground(properties.getRightBubble().getConstantState().newDrawable());
-                } else {
-                    setMessageBubbleBackground(R.drawable.chat_message_popup_fill_border_right);
-                }
-            } else {
-                if (properties.getLeftBubble() != null && properties.getLeftBubble().getConstantState() != null) {
-                    setMessageBubbleBackground(properties.getLeftBubble().getConstantState().newDrawable());
-                } else {
-                    setMessageBubbleBackground(R.drawable.chat_message_popup_stroke_border_left);
-                }
-            }
-
+    private void setEventListener(TUIMessageBean msg) {
+        if (!isForwardMode && !isMessageDetailMode) {
             if (onItemClickListener != null) {
                 msgContentFrame.setOnLongClickListener(new View.OnLongClickListener() {
                     @Override
@@ -224,18 +216,7 @@ public abstract class MessageContentHolder extends MessageBaseHolder {
                 });
             }
 
-            if (msg.getStatus() == TUIMessageBean.MSG_STATUS_SEND_FAIL) {
-                messageStatusImage.setVisibility(View.VISIBLE);
-
-                messageStatusImage.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        if (onItemClickListener != null) {
-                            onItemClickListener.onSendFailBtnClick(messageStatusImage, msg);
-                        }
-                    }
-                });
-            } else {
+            if (msg.getStatus() != TUIMessageBean.MSG_STATUS_SEND_FAIL) {
                 msgContentFrame.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
@@ -244,7 +225,24 @@ public abstract class MessageContentHolder extends MessageBaseHolder {
                         }
                     }
                 });
-                messageStatusImage.setVisibility(View.GONE);
+            }
+        }
+    }
+
+    private void setMessageTimeVisibility() {
+        if (isForwardMode || floatMode) {
+            chatTimeText.setVisibility(View.GONE);
+        }
+    }
+
+    private void setLayoutAlignment(TUIMessageBean msg) {
+        if (isForwardMode || isMessageDetailMode) {
+            isLayoutOnStart = true;
+        } else {
+            if (msg.isSelf()) {
+                isLayoutOnStart = false;
+            } else {
+                isLayoutOnStart = true;
             }
         }
 
@@ -261,44 +259,107 @@ public abstract class MessageContentHolder extends MessageBaseHolder {
                 msgContentLinear.addView(msgAreaAndReply, 0);
             }
         }
-        setGravity(isShowStart);
-        rootLayout.setIsStart(isShowStart);
+        setGravity(isLayoutOnStart);
+        rootLayout.setIsStart(isLayoutOnStart);
+    }
 
-        msgContentLinear.setVisibility(View.VISIBLE);
-
-        if (!isForwardMode && !isMessageDetailMode) {
-            setTimeInLineStatus(msg);
-            setShowReadStatusClickListener(msg);
-        }
-
-        if (timeInLineTextLayout != null) {
-            timeInLineTextLayout.setTimeText(DateTimeUtil.getHMTimeString(new Date(msg.getMessageTime() * 1000)));
-        }
-
-        extraInfoArea.setVisibility(View.GONE);
-        setReplyContent(msg);
-        setReactContent(msg);
-        if (isNeedShowBottom) {
-            setBottomContent(msg);
-        }
-        setMessageBubbleDefaultPadding();
-        if (floatMode) {
-            itemView.setPaddingRelative(0, 0, 0, 0);
-            leftUserIcon.setVisibility(View.GONE);
-            rightUserIcon.setVisibility(View.GONE);
+    private void setUserNameText(TUIMessageBean msg) {
+        if (isForwardMode || isMessageDetailMode) {
             usernameText.setVisibility(View.GONE);
-            messageStatusImage.setVisibility(View.GONE);
-            replyPreviewView.setVisibility(View.GONE);
-            reactView.setVisibility(View.GONE);
-            chatTimeText.setVisibility(View.GONE);
-        }
-        if (isMessageDetailMode) {
-            replyPreviewView.setVisibility(View.GONE);
+        } else {
+            if (msg.isSelf()) {
+                usernameText.setVisibility(View.GONE);
+            } else {
+                if (msg.isGroup()) {
+                    usernameText.setVisibility(View.GONE);
+                } else {
+                    usernameText.setVisibility(View.GONE);
+                }
+            }
         }
 
-        optimizeAvatarAndPadding(position, msg);
-        loadAvatar(msg);
-        layoutVariableViews(msg, position);
+        usernameText.setText(msg.getUserDisplayName());
+    }
+
+    public void setIsShowAvatar(TUIMessageBean msg, int position) {
+        isShowAvatar = true;
+        if (mAdapter == null) {
+            return;
+        }
+        if (isMessageDetailMode || !isOptimize) {
+            return;
+        }
+        TUIMessageBean nextMessage = mAdapter.getItem(position + 1);
+        if (nextMessage != null) {
+            if (TextUtils.equals(msg.getSender(), nextMessage.getSender())) {
+                boolean longPeriod = nextMessage.getMessageTime() - msg.getMessageTime() >= 5 * 60;
+                if (!isShowAvatar(nextMessage) && nextMessage.getStatus() != TUIMessageBean.MSG_STATUS_REVOKE && !longPeriod) {
+                    isShowAvatar = false;
+                }
+            }
+        }
+    }
+
+    public void setMessageBubbleBackground() {
+        if (!TUIConfigMinimalist.isEnableMessageBubbleStyle()) {
+            setMessageBubbleBackground(null);
+            return;
+        }
+        Drawable sendBubble = TUIConfigMinimalist.getSendBubbleBackground();
+        Drawable receiveBubble = TUIConfigMinimalist.getReceiveBubbleBackground();
+        Drawable sendLastBubble = TUIConfigMinimalist.getSendLastBubbleBackground();
+        Drawable receiveLastBubble = TUIConfigMinimalist.getReceiveLastBubbleBackground();
+        if (isShowAvatar) {
+            if (isLayoutOnStart) {
+                if (receiveLastBubble != null) {
+                    setMessageBubbleBackground(receiveLastBubble);
+                } else {
+                    setMessageBubbleBackground(R.drawable.chat_message_popup_stroke_border_left);
+                }
+            } else {
+                if (sendLastBubble != null) {
+                    setMessageBubbleBackground(sendLastBubble);
+                } else {
+                    setMessageBubbleBackground(R.drawable.chat_message_popup_fill_border_right);
+                }
+            }
+        } else {
+            if (isLayoutOnStart) {
+                if (receiveBubble != null) {
+                    setMessageBubbleBackground(receiveBubble);
+                } else {
+                    setMessageBubbleBackground(R.drawable.chat_message_popup_stroke_border);
+                }
+            } else {
+                if (sendBubble != null) {
+                    setMessageBubbleBackground(sendBubble);
+                } else {
+                    setMessageBubbleBackground(R.drawable.chat_message_popup_fill_border);
+                }
+            }
+        }
+    }
+
+    public void setMessageStatusImage(TUIMessageBean msg) {
+        if (isForwardMode || isMessageDetailMode || floatMode) {
+            messageStatusImage.setVisibility(View.GONE);
+        } else {
+            if (msg.hasRiskContent()) {
+                messageStatusImage.setVisibility(View.VISIBLE);
+            } else if (msg.getStatus() == TUIMessageBean.MSG_STATUS_SEND_FAIL) {
+                messageStatusImage.setVisibility(View.VISIBLE);
+                messageStatusImage.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        if (onItemClickListener != null) {
+                            onItemClickListener.onSendFailBtnClick(messageStatusImage, msg);
+                        }
+                    }
+                });
+            } else {
+                messageStatusImage.setVisibility(View.GONE);
+            }
+        }
     }
 
     public void setBottomContent(TUIMessageBean msg) {
@@ -311,112 +372,128 @@ public abstract class MessageContentHolder extends MessageBaseHolder {
     }
 
     private void loadAvatar(TUIMessageBean msg) {
-        if (msg.isUseMsgReceiverAvatar()) {
-            String userId = "";
-            if (TextUtils.equals(msg.getSender(), V2TIMManager.getInstance().getLoginUser())) {
-                userId = msg.getUserId();
-            } else {
-                userId = V2TIMManager.getInstance().getLoginUser();
-            }
-            List<String> idList = new ArrayList<>();
-            idList.add(userId);
-            V2TIMManager.getInstance().getUsersInfo(idList, new V2TIMValueCallback<List<V2TIMUserFullInfo>>() {
-                @Override
-                public void onSuccess(List<V2TIMUserFullInfo> v2TIMUserFullInfos) {
-                    V2TIMUserFullInfo userInfo = v2TIMUserFullInfos.get(0);
-                    if (userInfo == null) {
-                        setupAvatar("", msg.isSelf());
-                    } else {
-                        setupAvatar(userInfo.getFaceUrl(), msg.isSelf());
+        Drawable drawable = TUIConfigMinimalist.getDefaultAvatarImage();
+        if (drawable != null) {
+            setupAvatar(drawable);
+            return;
+        }
+
+        if (msg.isUseMsgReceiverAvatar() && mAdapter != null) {
+            String cachedFaceUrl = mAdapter.getUserFaceUrlCache().getCachedFaceUrl(msg.getSender());
+            if (cachedFaceUrl == null) {
+                List<String> idList = new ArrayList<>();
+                idList.add(msg.getSender());
+                V2TIMManager.getInstance().getUsersInfo(idList, new V2TIMValueCallback<List<V2TIMUserFullInfo>>() {
+                    @Override
+                    public void onSuccess(List<V2TIMUserFullInfo> v2TIMUserFullInfos) {
+                        if (v2TIMUserFullInfos == null || v2TIMUserFullInfos.isEmpty()) {
+                            return;
+                        }
+                        V2TIMUserFullInfo userInfo = v2TIMUserFullInfos.get(0);
+                        String faceUrl = userInfo.getFaceUrl();
+                        if (TextUtils.isEmpty(userInfo.getFaceUrl())) {
+                            faceUrl = "";
+                        }
+                        mAdapter.getUserFaceUrlCache().pushFaceUrl(userInfo.getUserID(), faceUrl);
+                        mAdapter.onItemRefresh(msg);
                     }
-                }
 
-                @Override
-                public void onError(int code, String desc) {
-                    setupAvatar("", msg.isSelf());
-                }
-            });
+                    @Override
+                    public void onError(int code, String desc) {
+                        setupAvatar("");
+                    }
+                });
+            } else {
+                setupAvatar(cachedFaceUrl);
+            }
         } else {
-            setupAvatar(msg.getFaceUrl(), msg.isSelf());
+            setupAvatar(msg.getFaceUrl());
         }
     }
 
-    private void setupAvatar(String faceUrl, boolean right) {
-        if (!TextUtils.isEmpty(faceUrl)) {
-            List<Object> urllist = new ArrayList<>();
-            urllist.add(faceUrl);
-            if (isForwardMode || isMessageDetailMode) {
-                leftUserIcon.setIconUrls(urllist);
+    private void setupAvatar(Object faceUrl) {
+        int avatarSize = TUIConfigMinimalist.getMessageListAvatarSize();
+        if (avatarSize == TUIConfigMinimalist.UNDEFINED) {
+            avatarSize = ScreenUtil.dip2px(32);
+        }
+        ViewGroup.LayoutParams params = leftUserIcon.getLayoutParams();
+        params.width = avatarSize;
+        if (leftUserIcon.getVisibility() == View.INVISIBLE) {
+            params.height = 1;
+        } else {
+            params.height = avatarSize;
+        }
+        leftUserIcon.setLayoutParams(params);
+
+        params = rightUserIcon.getLayoutParams();
+        params.width = avatarSize;
+        if (rightUserIcon.getVisibility() == View.INVISIBLE) {
+            params.height = 1;
+        } else {
+            params.height = avatarSize;
+        }
+        rightUserIcon.setLayoutParams(params);
+
+        int radius = ScreenUtil.dip2px(100);
+        if (TUIConfigMinimalist.getMessageListAvatarRadius() != TUIConfigMinimalist.UNDEFINED) {
+            radius = TUIConfigMinimalist.getMessageListAvatarRadius();
+        }
+        ImageView renderedView;
+        if (isLayoutOnStart) {
+            renderedView = leftUserIcon;
+        } else {
+            renderedView = rightUserIcon;
+        }
+
+        RequestBuilder<Drawable> errorRequestBuilder = Glide.with(itemView.getContext())
+                .load(TUIThemeManager.getAttrResId(leftUserIcon.getContext(), com.tencent.qcloud.tuikit.timcommon.R.attr.core_default_user_icon))
+                .placeholder(TUIThemeManager.getAttrResId(leftUserIcon.getContext(), com.tencent.qcloud.tuikit.timcommon.R.attr.core_default_user_icon))
+                .transform(new RoundedCorners(radius));
+
+        Glide.with(itemView.getContext())
+                .load(faceUrl)
+                .transform(new RoundedCorners(radius))
+                .error(errorRequestBuilder)
+                .into(renderedView);
+    }
+
+    private void setAvatarVisibility() {
+        if (isShowAvatar) {
+            if (isLayoutOnStart) {
+                leftUserIcon.setVisibility(View.VISIBLE);
+                rightUserIcon.setVisibility(View.GONE);
             } else {
-                if (right) {
-                    rightUserIcon.setIconUrls(urllist);
+                leftUserIcon.setVisibility(View.GONE);
+                if (isShowSelfAvatar) {
+                    rightUserIcon.setVisibility(View.VISIBLE);
                 } else {
-                    leftUserIcon.setIconUrls(urllist);
+                    rightUserIcon.setVisibility(View.GONE);
                 }
             }
         } else {
-            rightUserIcon.setIconUrls(null);
-            leftUserIcon.setIconUrls(null);
-        }
-
-        if (isShowSelfAvatar) {
-            rightUserIcon.setVisibility(View.VISIBLE);
-        } else {
-            rightUserIcon.setVisibility(View.GONE);
+            leftUserIcon.setVisibility(View.INVISIBLE);
+            if (isShowSelfAvatar) {
+                rightUserIcon.setVisibility(View.INVISIBLE);
+            } else {
+                rightUserIcon.setVisibility(View.GONE);
+            }
         }
     }
 
-    protected boolean isNeedChangedBackground() {
-        return true;
-    }
-
-    private void optimizeAvatarAndPadding(int position, TUIMessageBean messageBean) {
+    private void optimizePadding(int position, TUIMessageBean messageBean) {
         if (mAdapter == null) {
             return;
         }
         if (isMessageDetailMode || !isOptimize) {
             return;
         }
-        TUIMessageBean nextMessage = mAdapter.getItem(position + 1);
-        boolean isShowAvatar = true;
-        boolean needChangedBackground = isNeedChangedBackground();
-        if (nextMessage != null) {
-            if (TextUtils.equals(messageBean.getSender(), nextMessage.getSender())) {
-                boolean longPeriod = nextMessage.getMessageTime() - messageBean.getMessageTime() >= 5 * 60;
-                if (!isShowAvatar(nextMessage) && nextMessage.getStatus() != TUIMessageBean.MSG_STATUS_REVOKE && !longPeriod) {
-                    isShowAvatar = false;
-                }
-            }
-        }
 
+        TUIMessageBean nextMessage = mAdapter.getItem(position + 1);
         int horizontalPadding = ScreenUtil.dip2px(16);
         int verticalPadding = ScreenUtil.dip2px(25f);
-        if (isShowAvatar) {
-            if (isShowStart) {
-                leftUserIcon.setVisibility(View.VISIBLE);
-                rightUserIcon.setVisibility(View.INVISIBLE);
-                if (needChangedBackground) {
-                    setMessageBubbleBackground(R.drawable.chat_message_popup_stroke_border_left);
-                }
-            } else {
-                leftUserIcon.setVisibility(View.INVISIBLE);
-                rightUserIcon.setVisibility(View.VISIBLE);
-                if (needChangedBackground) {
-                    setMessageBubbleBackground(R.drawable.chat_message_popup_fill_border_right);
-                }
-            }
-        } else {
-            if (needChangedBackground) {
-                if (isShowStart) {
-                    setMessageBubbleBackground(R.drawable.chat_message_popup_stroke_border);
-                } else {
-                    setMessageBubbleBackground(R.drawable.chat_message_popup_fill_border);
-                }
-            }
+        if (!isShowAvatar) {
             horizontalPadding = ScreenUtil.dip2px(16);
             verticalPadding = ScreenUtil.dip2px(2);
-            leftUserIcon.setVisibility(View.INVISIBLE);
-            rightUserIcon.setVisibility(View.INVISIBLE);
         }
         if (nextMessage != null) {
             rootLayout.setPaddingRelative(horizontalPadding, 0, horizontalPadding, verticalPadding);
@@ -428,50 +505,13 @@ public abstract class MessageContentHolder extends MessageBaseHolder {
 
     protected void optimizeMessageContent(boolean isShowAvatar) {}
 
-    private void setMessageGravity(TUIMessageBean messageBean) {
-        if (isForwardMode || isMessageDetailMode) {
-            leftUserIcon.setVisibility(View.VISIBLE);
-            rightUserIcon.setVisibility(View.GONE);
+    private void setMessageGravity() {
+        if (isLayoutOnStart) {
+            msgContentLinear.setGravity(Gravity.START | Gravity.BOTTOM);
+            extraInfoArea.setGravity(Gravity.START);
         } else {
-            if (messageBean.isSelf()) {
-                msgContentLinear.setGravity(Gravity.END);
-                leftUserIcon.setVisibility(View.GONE);
-                rightUserIcon.setVisibility(View.VISIBLE);
-                extraInfoArea.setGravity(Gravity.END);
-            } else {
-                msgContentLinear.setGravity(Gravity.START);
-                leftUserIcon.setVisibility(View.VISIBLE);
-                rightUserIcon.setVisibility(View.GONE);
-                extraInfoArea.setGravity(Gravity.START);
-            }
-        }
-        if (properties.getAvatar() != 0) {
-            leftUserIcon.setDefaultImageResId(properties.getAvatar());
-            rightUserIcon.setDefaultImageResId(properties.getAvatar());
-        } else {
-            leftUserIcon.setDefaultImageResId(
-                TUIThemeManager.getAttrResId(leftUserIcon.getContext(), com.tencent.qcloud.tuikit.timcommon.R.attr.core_default_user_icon));
-            rightUserIcon.setDefaultImageResId(
-                TUIThemeManager.getAttrResId(rightUserIcon.getContext(), com.tencent.qcloud.tuikit.timcommon.R.attr.core_default_user_icon));
-        }
-        if (properties.getAvatarRadius() != 0) {
-            leftUserIcon.setRadius(properties.getAvatarRadius());
-            rightUserIcon.setRadius(properties.getAvatarRadius());
-        } else {
-            int radius = ScreenUtil.dip2px(4);
-            leftUserIcon.setRadius(radius);
-            rightUserIcon.setRadius(radius);
-        }
-        if (properties.getAvatarSize() != null && properties.getAvatarSize().length == 2) {
-            ViewGroup.LayoutParams params = leftUserIcon.getLayoutParams();
-            params.width = properties.getAvatarSize()[0];
-            params.height = properties.getAvatarSize()[1];
-            leftUserIcon.setLayoutParams(params);
-
-            params = rightUserIcon.getLayoutParams();
-            params.width = properties.getAvatarSize()[0];
-            params.height = properties.getAvatarSize()[1];
-            rightUserIcon.setLayoutParams(params);
+            msgContentLinear.setGravity(Gravity.END | Gravity.BOTTOM);
+            extraInfoArea.setGravity(Gravity.END);
         }
     }
 
@@ -493,6 +533,43 @@ public abstract class MessageContentHolder extends MessageBaseHolder {
                 setReadStatus(READ_STATUS_HIDE);
             }
         }
+    }
+
+    protected void setOnTimeInLineTextClickListener(TUIMessageBean messageBean) {
+        timeInLineTextLayout.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (onItemClickListener != null) {
+                    onItemClickListener.onMessageClick(msgArea, messageBean);
+                }
+            }
+        });
+        timeInLineTextLayout.getTextView().setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (onItemClickListener != null) {
+                    onItemClickListener.onMessageClick(msgArea, messageBean);
+                }
+            }
+        });
+        timeInLineTextLayout.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                if (onItemClickListener != null) {
+                    onItemClickListener.onMessageLongClick(msgArea, messageBean);
+                }
+                return true;
+            }
+        });
+        timeInLineTextLayout.getTextView().setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                if (onItemClickListener != null) {
+                    onItemClickListener.onMessageLongClick(msgArea, messageBean);
+                }
+                return true;
+            }
+        });
     }
 
     protected void setReadStatus(int readStatus) {
@@ -561,36 +638,11 @@ public abstract class MessageContentHolder extends MessageBaseHolder {
     }
 
     private void setReactContent(TUIMessageBean messageBean) {
-        MessageReactBean messageReactBean = messageBean.getMessageReactBean();
-        if (messageReactBean != null && messageReactBean.getReactSize() > 0) {
-            reactView.setVisibility(View.VISIBLE);
-            reactView.setData(messageReactBean);
-            reactView.setOnLongClickListener(new View.OnLongClickListener() {
-                @Override
-                public boolean onLongClick(View v) {
-                    if (onItemClickListener != null) {
-                        onItemClickListener.onMessageLongClick(msgArea, messageBean);
-                    }
-                    return true;
-                }
-            });
-
-            reactView.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    if (onItemClickListener != null) {
-                        onItemClickListener.onReactOnClick(null, messageBean);
-                    }
-                }
-            });
-
-            if (isForwardMode) {
-                reactView.setOnLongClickListener(null);
-            }
-        } else {
-            reactView.setVisibility(View.GONE);
-            reactView.setOnLongClickListener(null);
-        }
+        Map<String, Object> param = new HashMap<>();
+        param.put(TUIConstants.TUIChat.Extension.MessageReactPreviewExtension.MESSAGE, messageBean);
+        param.put(TUIConstants.TUIChat.Extension.MessageReactPreviewExtension.VIEW_TYPE,
+            TUIConstants.TUIChat.Extension.MessageReactPreviewExtension.VIEW_TYPE_MINIMALIST);
+        TUICore.raiseExtension(TUIConstants.TUIChat.Extension.MessageReactPreviewExtension.EXTENSION_ID, reactionArea, param);
     }
 
     private void processReadStatus(TUIMessageBean msg) {
@@ -616,18 +668,14 @@ public abstract class MessageContentHolder extends MessageBaseHolder {
 
     private void setShowReadStatusClickListener(TUIMessageBean messageBean) {
         if (timeInLineTextLayout != null) {
-            if (messageBean.isSelf()) {
-                timeInLineTextLayout.setOnStatusAreaClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        if (onItemClickListener != null) {
-                            onItemClickListener.onMessageReadStatusClick(v, messageBean);
-                        }
+            timeInLineTextLayout.setOnStatusAreaClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (onItemClickListener != null) {
+                        onItemClickListener.onMessageReadStatusClick(v, messageBean);
                     }
-                });
-            } else {
-                timeInLineTextLayout.setOnStatusAreaClickListener(null);
-            }
+                }
+            });
             timeInLineTextLayout.setOnStatusAreaLongClickListener(new View.OnLongClickListener() {
                 @Override
                 public boolean onLongClick(View v) {
@@ -652,7 +700,9 @@ public abstract class MessageContentHolder extends MessageBaseHolder {
 
     public abstract void layoutVariableViews(final TUIMessageBean msg, final int position);
 
-    public void onRecycled() {}
+    public void onRecycled() {
+        super.onRecycled();
+    }
 
     public void setNeedShowBottom(boolean needShowBottom) {
         isNeedShowBottom = needShowBottom;

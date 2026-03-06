@@ -1,12 +1,14 @@
 <template>
-  <div class="manage-member-control-container">
+  <div
+    v-if="manageMemberControlConfig.visible"
+    class="manage-member-control-container"
+  >
     <icon-button
       :is-active="sidebarName === 'manage-member'"
       :title="memberTitle"
       :icon="ManageMemberIcon"
       @click-icon="toggleMangeMemberSidebar"
-    >
-    </icon-button>
+    />
   </div>
 </template>
 
@@ -18,7 +20,11 @@ import { useBasicStore } from '../../stores/basic';
 import { useRoomStore } from '../../stores/room';
 import { useI18n } from '../../locales';
 import { computed } from 'vue';
+import { roomService } from '../../services';
 
+const manageMemberControlConfig = roomService.getComponentConfig(
+  'ManageMemberControl'
+);
 const { t } = useI18n();
 
 const basicStore = useBasicStore();
@@ -29,7 +35,10 @@ const { userNumber } = storeToRefs(roomStore);
 const memberTitle = computed(() => `${t('Members')}(${userNumber.value})`);
 
 function toggleMangeMemberSidebar() {
-  if (basicStore.setSidebarOpenStatus && sidebarName.value === 'manage-member') {
+  if (
+    basicStore.setSidebarOpenStatus &&
+    sidebarName.value === 'manage-member'
+  ) {
     basicStore.setSidebarOpenStatus(false);
     basicStore.setSidebarName('');
     return;
@@ -40,6 +49,4 @@ function toggleMangeMemberSidebar() {
 }
 </script>
 
-<style lang="scss" scoped>
-
-</style>
+<style lang="scss" scoped></style>

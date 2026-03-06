@@ -2,7 +2,7 @@
 //  TUIRoomMessageExtensionObserver.swift
 //  TUIRoomKit
 //
-//  Created by 唐佳宁 on 2023/5/8.
+//  Created by janejntang on 2023/5/8.
 //  Copyright © 2023 Tencent. All rights reserved.
 //
 
@@ -15,5 +15,6 @@ extension NSObject {
         TUICore.registerService(TUICore_TUIRoomImAccessService, object: TUIRoomImAccessService.shared)
         TUICore.registerObjectFactory(TUICore_TUIRoomImAccessFactory, objectFactory: TUIRoomImAccessFactory.shared)
         TUICore.registerExtension(TUICore_TUIContactExtension_MeSettingMenu_ClassicExtensionID, object: RoomMessageExtensionObserver.shared)
+        ServiceInitializer.shared.registerObserver()
     }
 }

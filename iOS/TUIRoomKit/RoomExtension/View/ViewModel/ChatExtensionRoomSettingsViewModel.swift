@@ -2,7 +2,7 @@
 //  ChatExtensionRoomSettingsViewModel.swift
 //  TUIRoomKit
 //
-//  Created by 唐佳宁 on 2023/6/26.
+//  Created by janejntang on 2023/6/26.
 //
 
 import Foundation
@@ -10,7 +10,7 @@ import Foundation
 class ChatExtensionRoomSettingsViewModel {
     var isOpenMicrophone: Bool
     var isOpenCamera: Bool
-    private let engineManager = EngineManager.createInstance()
+    private let engineManager = EngineManager.shared
     private(set) var roomSettingsViewItems: [RoomSetListItemData] = []
     init(isOpenMicrophone: Bool, isOpenCamera: Bool) {
         self.isOpenMicrophone = isOpenMicrophone
@@ -39,9 +39,9 @@ class ChatExtensionRoomSettingsViewModel {
 }
 private extension String {
     static var cameraSetText: String {
-        localized("TUIRoom.camera.set")
+        localized("Enable video when joining a meeting")
     }
     static var micSeatText: String {
-        localized("TUIRoom.mic.set")
+        localized("Enable audio when joining a meeting")
     }
 }

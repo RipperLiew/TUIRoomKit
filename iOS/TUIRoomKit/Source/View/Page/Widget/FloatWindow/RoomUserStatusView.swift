@@ -2,14 +2,15 @@
 //  RoomUserStatusView.swift
 //  TUIRoomKit
 //
-//  Created by 唐佳宁 on 2023/7/24.
+//  Created by janejntang on 2023/7/24.
 //
 
 import Foundation
 
 class RoomUserStatusView: UIView {
-    private var isOwner: Bool = false
+    private var isShownUserRoleFlag = false
     private var isViewReady: Bool = false
+    private var isShownMuteFlag = true
     private let homeOwnerImageView: UIImageView = {
         let imageView = UIImageView(image: UIImage(named: "room_homeowner", in: tuiRoomKitBundle(), compatibleWith: nil))
         imageView.layer.cornerRadius = 12
@@ -27,8 +28,8 @@ class RoomUserStatusView: UIView {
         return user
     }()
 
-    private let voiceVolumeImageView: UIImageView = {
-        let imageView = UIImageView()
+    private let voiceVolumeImageView: VolumeView = {
+        let imageView = VolumeView()
         return imageView
     }()
     
@@ -56,29 +57,20 @@ class RoomUserStatusView: UIView {
             make.centerY.equalToSuperview()
             make.trailing.equalToSuperview().offset(-8)
         }
+        voiceVolumeImageView.snp.makeConstraints { make in
+            make.leading.equalTo(homeOwnerImageView.snp.trailing).offset(6.scale375())
+            make.width.height.equalTo(14)
+            make.centerY.equalToSuperview()
+        }
     }
-
+    
     private func updateViewConstraints() {
         guard homeOwnerImageView.superview != nil else { return }
-        if isOwner {
-            homeOwnerImageView.isHidden = false
-            homeOwnerImageView.snp.remakeConstraints { make in
-                make.leading.equalToSuperview()
-                make.width.height.equalTo(24)
-                make.top.bottom.equalToSuperview()
-            }
-            voiceVolumeImageView.snp.remakeConstraints { make in
-                make.leading.equalTo(homeOwnerImageView.snp.trailing).offset(6.scale375())
-                make.width.height.equalTo(14)
-                make.centerY.equalToSuperview()
-            }
-        } else {
-            homeOwnerImageView.isHidden = true
-            voiceVolumeImageView.snp.remakeConstraints { make in
-                make.leading.equalToSuperview().offset(5)
-                make.width.height.equalTo(14)
-                make.centerY.equalToSuperview()
-            }
+        homeOwnerImageView.snp.remakeConstraints { make in
+            make.leading.equalToSuperview()
+            make.height.equalTo(24)
+            make.top.bottom.equalToSuperview()
+            make.width.equalTo(isShownUserRoleFlag ? 24 : 0)
         }
     }
 }
@@ -90,17 +82,24 @@ extension RoomUserStatusView {
         } else {
             userNameLabel.text = userModel.userId
         }
-        isOwner = userModel.userId == EngineManager.createInstance().store.roomInfo.ownerId
+        if userModel.userRole == .roomOwner {
+            homeOwnerImageView.image = UIImage(named: "room_homeowner", in: tuiRoomKitBundle(), compatibleWith: nil)
+        } else if userModel.userRole == .administrator {
+            homeOwnerImageView.image = UIImage(named: "room_administrator", in: tuiRoomKitBundle(), compatibleWith: nil)
+        }
+        isShownUserRoleFlag = userModel.userRole != .generalUser
         updateViewConstraints()
-        updateUserVolume(hasAudio: userModel.hasAudioStream, volume: userModel.userVoiceVolume)
+        updateUserAudio(userModel.hasAudioStream)
+        updateUserVolume(volume: userModel.userVoiceVolume)
+    }
+    
+    func updateUserAudio(_ hasAudio: Bool) {
+        voiceVolumeImageView.updateAudio(hasAudio)
+        isShownMuteFlag = !hasAudio
     }
 
-    func updateUserVolume(hasAudio: Bool, volume: Int) {
-        if !hasAudio {
-            voiceVolumeImageView.image = UIImage(named: "room_mute_audio", in: tuiRoomKitBundle(), compatibleWith: nil)?.checkOverturn()
-        } else {
-            let volumeImageName = volume <= 0 ? "room_voice_volume1" : "room_voice_volume2"
-            voiceVolumeImageView.image = UIImage(named: volumeImageName, in: tuiRoomKitBundle(), compatibleWith: nil)
-        }
+    func updateUserVolume(volume: Int) {
+        guard !isShownMuteFlag else { return }
+        voiceVolumeImageView.updateVolume(CGFloat(volume))
     }
 }

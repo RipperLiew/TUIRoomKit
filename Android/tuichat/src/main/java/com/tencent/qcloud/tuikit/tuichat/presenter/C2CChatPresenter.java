@@ -10,7 +10,7 @@ import com.tencent.qcloud.tuikit.timcommon.bean.UserBean;
 import com.tencent.qcloud.tuikit.timcommon.component.interfaces.IUIKitCallback;
 import com.tencent.qcloud.tuikit.tuichat.TUIChatConstants;
 import com.tencent.qcloud.tuikit.tuichat.TUIChatService;
-import com.tencent.qcloud.tuikit.tuichat.bean.ChatInfo;
+import com.tencent.qcloud.tuikit.tuichat.bean.C2CChatInfo;
 import com.tencent.qcloud.tuikit.tuichat.bean.message.MessageTypingBean;
 import com.tencent.qcloud.tuikit.tuichat.interfaces.C2CChatEventListener;
 import com.tencent.qcloud.tuikit.tuichat.util.TUIChatLog;
@@ -23,16 +23,11 @@ import java.util.List;
 public class C2CChatPresenter extends ChatPresenter {
     private static final String TAG = C2CChatPresenter.class.getSimpleName();
 
-    private ChatInfo chatInfo;
+    private C2CChatInfo c2CChatInfo;
 
     private C2CChatEventListener chatEventListener;
 
     private TypingListener typingListener;
-
-    public C2CChatPresenter() {
-        super();
-        TUIChatLog.i(TAG, "C2CChatPresenter Init");
-    }
 
     public void initListener() {
         chatEventListener = new C2CChatEventListener() {
@@ -53,7 +48,7 @@ public class C2CChatPresenter extends ChatPresenter {
 
             @Override
             public void onRecvNewMessage(TUIMessageBean message) {
-                if (chatInfo == null || !TextUtils.equals(message.getUserId(), chatInfo.getId())) {
+                if (c2CChatInfo == null || !TextUtils.equals(message.getUserId(), c2CChatInfo.getId())) {
                     TUIChatLog.i(TAG, "receive a new message , not belong to current chat.");
                 } else {
                     if (message instanceof MessageTypingBean) {
@@ -66,7 +61,7 @@ public class C2CChatPresenter extends ChatPresenter {
 
             @Override
             public void onFriendNameChanged(String userId, String newName) {
-                if (chatInfo == null || !TextUtils.equals(userId, chatInfo.getId())) {
+                if (c2CChatInfo == null || !TextUtils.equals(userId, c2CChatInfo.getId())) {
                     return;
                 }
                 C2CChatPresenter.this.onFriendInfoChanged();
@@ -79,7 +74,7 @@ public class C2CChatPresenter extends ChatPresenter {
 
             @Override
             public void onRecvMessageModified(TUIMessageBean messageBean) {
-                if (chatInfo == null || !TextUtils.equals(messageBean.getUserId(), chatInfo.getId())) {
+                if (c2CChatInfo == null || !TextUtils.equals(messageBean.getUserId(), c2CChatInfo.getId())) {
                     return;
                 }
                 C2CChatPresenter.this.onRecvMessageModified(messageBean);
@@ -87,14 +82,14 @@ public class C2CChatPresenter extends ChatPresenter {
 
             @Override
             public void addMessage(TUIMessageBean messageBean, String chatId) {
-                if (TextUtils.equals(chatId, chatInfo.getId())) {
-                    addMessageInfo(messageBean);
+                if (TextUtils.equals(chatId, c2CChatInfo.getId())) {
+                    addMessageToUI(messageBean, true);
                 }
             }
 
             @Override
             public void clearC2CMessage(String userID) {
-                if (TextUtils.equals(userID, chatInfo.getId())) {
+                if (TextUtils.equals(userID, c2CChatInfo.getId())) {
                     clearMessage();
                 }
             }
@@ -113,10 +108,6 @@ public class C2CChatPresenter extends ChatPresenter {
     }
 
     /**
-     * 拉取消息
-     * @param type 向前，向后或者前后同时拉取
-     * @param lastMessageInfo 拉取消息的起始点
-     *
      *
      * pull message
      * @param type Pull forward, backward, or both
@@ -124,13 +115,13 @@ public class C2CChatPresenter extends ChatPresenter {
      */
     @Override
     public void loadMessage(int type, TUIMessageBean lastMessageInfo, IUIKitCallback<List<TUIMessageBean>> callback) {
-        if (chatInfo == null || isLoading) {
+        if (c2CChatInfo == null || isLoading) {
             return;
         }
         isLoading = true;
 
-        String chatId = chatInfo.getId();
-        // 向前拉取更旧的消息
+        String chatId = c2CChatInfo.getId();
+        
         // Pull older messages forward
         if (type == TUIChatConstants.GET_MESSAGE_FORWARD) {
             provider.loadC2CMessage(chatId, MSG_PAGE_COUNT, lastMessageInfo, new IUIKitCallback<Pair<List<TUIMessageBean>, Integer>>() {
@@ -155,22 +146,22 @@ public class C2CChatPresenter extends ChatPresenter {
                 }
             });
         } else {
-            // 向后拉更新的消息 或者 前后同时拉消息
+            
             // Pull the updated message backward or pull the message forward and backward at the same time
             loadHistoryMessageList(chatId, false, type, MSG_PAGE_COUNT, lastMessageInfo, callback);
         }
     }
 
-    // 加载消息成功之后会调用此方法
+    
     // This method is called after the message is loaded successfully
     @Override
     protected void onMessageLoadCompleted(List<TUIMessageBean> data, int getType) {
-        c2cReadReport(chatInfo.getId());
+        c2cReadReport(c2CChatInfo.getId());
         getMessageReadReceipt(data, getType);
     }
 
-    public void setChatInfo(ChatInfo chatInfo) {
-        this.chatInfo = chatInfo;
+    public void setChatInfo(C2CChatInfo c2CChatInfo) {
+        this.c2CChatInfo = c2CChatInfo;
     }
 
     public void setTypingListener(TypingListener typingListener) {
@@ -186,8 +177,8 @@ public class C2CChatPresenter extends ChatPresenter {
     }
 
     @Override
-    public ChatInfo getChatInfo() {
-        return chatInfo;
+    public C2CChatInfo getChatInfo() {
+        return c2CChatInfo;
     }
 
     public void onFriendNameChanged(String newName) {
@@ -197,7 +188,7 @@ public class C2CChatPresenter extends ChatPresenter {
     }
 
     public void onFriendFaceUrlChanged(String userID, String faceUrl) {
-        if (TextUtils.equals(userID, chatInfo.getId())) {
+        if (TextUtils.equals(userID, c2CChatInfo.getId())) {
             if (chatNotifyHandler != null) {
                 chatNotifyHandler.onFriendFaceUrlChanged(faceUrl);
             }
@@ -205,10 +196,10 @@ public class C2CChatPresenter extends ChatPresenter {
     }
 
     public void onReadReport(List<MessageReceiptInfo> receiptList) {
-        if (chatInfo != null) {
+        if (c2CChatInfo != null) {
             List<MessageReceiptInfo> processReceipts = new ArrayList<>();
             for (MessageReceiptInfo messageReceiptInfo : receiptList) {
-                if (!TextUtils.equals(messageReceiptInfo.getUserID(), chatInfo.getId())) {
+                if (!TextUtils.equals(messageReceiptInfo.getUserID(), c2CChatInfo.getId())) {
                     continue;
                 }
                 processReceipts.add(messageReceiptInfo);
@@ -218,10 +209,10 @@ public class C2CChatPresenter extends ChatPresenter {
     }
 
     public void onFriendInfoChanged() {
-        provider.getFriendName(chatInfo.getId(), new IUIKitCallback<String[]>() {
+        provider.getFriendName(c2CChatInfo.getId(), new IUIKitCallback<String[]>() {
             @Override
             public void onSuccess(String[] data) {
-                String displayName = chatInfo.getId();
+                String displayName = c2CChatInfo.getId();
                 if (!TextUtils.isEmpty(data[0])) {
                     displayName = data[0];
                 } else if (!TextUtils.isEmpty(data[1])) {
@@ -274,7 +265,7 @@ public class C2CChatPresenter extends ChatPresenter {
                 TUIChatUtils.callbackOnProgress(callBack, data);
             }
         });
-        // 消息先展示，通过状态来确认发送是否成功
+        
         TUIChatLog.i(TAG, "sendTypingStatusMessage msgID:" + msgId);
         message.setId(msgId);
         message.setStatus(TUIMessageBean.MSG_STATUS_SENDING);

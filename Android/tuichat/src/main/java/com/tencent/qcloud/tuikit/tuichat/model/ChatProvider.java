@@ -2,6 +2,7 @@ package com.tencent.qcloud.tuikit.tuichat.model;
 
 import static com.tencent.imsdk.BaseConstants.ERR_SDK_MSG_MODIFY_CONFLICT;
 import static com.tencent.imsdk.BaseConstants.ERR_SUCC;
+import static com.tencent.imsdk.v2.V2TIMMessage.V2TIM_MSG_STATUS_HAS_DELETED;
 import static com.tencent.imsdk.v2.V2TIMMessage.V2TIM_MSG_STATUS_SEND_FAIL;
 
 import android.text.TextUtils;
@@ -37,21 +38,25 @@ import com.tencent.imsdk.v2.V2TIMValueCallback;
 import com.tencent.qcloud.tuicore.TUIConfig;
 import com.tencent.qcloud.tuicore.TUIConstants;
 import com.tencent.qcloud.tuicore.TUICore;
+import com.tencent.qcloud.tuicore.TUILogin;
+import com.tencent.qcloud.tuicore.interfaces.TUICallback;
+import com.tencent.qcloud.tuicore.interfaces.TUIValueCallback;
+import com.tencent.qcloud.tuicore.push.OfflinePushExtConfigInfo;
+import com.tencent.qcloud.tuicore.push.OfflinePushExtInfo;
 import com.tencent.qcloud.tuicore.util.ErrorMessageConverter;
 import com.tencent.qcloud.tuikit.timcommon.bean.MessageFeature;
 import com.tencent.qcloud.tuikit.timcommon.bean.MessageReceiptInfo;
 import com.tencent.qcloud.tuikit.timcommon.bean.TUIMessageBean;
 import com.tencent.qcloud.tuikit.timcommon.bean.UserBean;
+import com.tencent.qcloud.tuikit.timcommon.component.face.FaceManager;
 import com.tencent.qcloud.tuikit.timcommon.component.interfaces.IUIKitCallback;
 import com.tencent.qcloud.tuikit.tuichat.TUIChatConstants;
 import com.tencent.qcloud.tuikit.tuichat.bean.ChatInfo;
 import com.tencent.qcloud.tuikit.tuichat.bean.GroupApplyInfo;
 import com.tencent.qcloud.tuikit.tuichat.bean.GroupMemberInfo;
-import com.tencent.qcloud.tuikit.tuichat.bean.OfflineMessageBean;
-import com.tencent.qcloud.tuikit.tuichat.bean.OfflineMessageContainerBean;
+import com.tencent.qcloud.tuikit.tuichat.bean.GroupMessageReadMembersInfo;
 import com.tencent.qcloud.tuikit.tuichat.bean.OfflinePushInfo;
 import com.tencent.qcloud.tuikit.tuichat.bean.UserStatusBean;
-import com.tencent.qcloud.tuikit.tuichat.bean.message.GroupMessageReadMembersInfo;
 import com.tencent.qcloud.tuikit.tuichat.bean.message.MergeMessageBean;
 import com.tencent.qcloud.tuikit.tuichat.bean.message.TipsMessageBean;
 import com.tencent.qcloud.tuikit.tuichat.config.TUIChatConfigs;
@@ -87,7 +92,7 @@ public class ChatProvider {
 
             @Override
             public void onSuccess(List<V2TIMMessage> v2TIMMessages) {
-                List<TUIMessageBean> messageInfoList = ChatMessageParser.parseMessageList(v2TIMMessages);
+                List<TUIMessageBean> messageInfoList = ChatMessageParser.parsePresentMessageList(v2TIMMessages);
                 TUIChatUtils.callbackOnSuccess(callBack, Pair.create(messageInfoList, v2TIMMessages.size()));
             }
         });
@@ -108,7 +113,7 @@ public class ChatProvider {
 
             @Override
             public void onSuccess(List<V2TIMMessage> v2TIMMessages) {
-                List<TUIMessageBean> messageInfoList = ChatMessageParser.parseMessageList(v2TIMMessages);
+                List<TUIMessageBean> messageInfoList = ChatMessageParser.parsePresentMessageList(v2TIMMessages);
                 TUIChatUtils.callbackOnSuccess(callBack, Pair.create(messageInfoList, v2TIMMessages.size()));
             }
         });
@@ -143,7 +148,7 @@ public class ChatProvider {
 
             @Override
             public void onSuccess(List<V2TIMMessage> v2TIMMessages) {
-                List<TUIMessageBean> messageInfoList = ChatMessageParser.parseMessageList(v2TIMMessages);
+                List<TUIMessageBean> messageInfoList = ChatMessageParser.parsePresentMessageList(v2TIMMessages);
                 TUIChatUtils.callbackOnSuccess(callBack, Pair.create(messageInfoList, v2TIMMessages.size()));
             }
         });
@@ -169,7 +174,7 @@ public class ChatProvider {
 
             @Override
             public void onSuccess(List<V2TIMMessage> v2TIMMessages) {
-                List<TUIMessageBean> messageInfoList = ChatMessageParser.parseMessageList(v2TIMMessages);
+                List<TUIMessageBean> messageInfoList = ChatMessageParser.parsePresentMessageList(v2TIMMessages);
                 if (messageInfoList == null || messageInfoList.isEmpty()) {
                     TUIChatUtils.callbackOnError(callBack, TAG, -1, "load last message failed.");
                 } else {
@@ -268,7 +273,6 @@ public class ChatProvider {
                 List<V2TIMGroupApplication> v2TIMGroupApplicationList = v2TIMGroupApplicationResult.getGroupApplicationList();
                 for (int i = 0; i < v2TIMGroupApplicationList.size(); i++) {
                     GroupApplyInfo info = new GroupApplyInfo(v2TIMGroupApplicationList.get(i));
-                    info.setStatus(0);
                     applies.add(info);
                 }
                 callBack.onSuccess(applies);
@@ -311,41 +315,47 @@ public class ChatProvider {
     }
 
     private V2TIMOfflinePushInfo createOfflinePushInfo(TUIMessageBean message, ChatInfo chatInfo) {
-        String description = message.getExtra();
+        String description = FaceManager.emojiJudge(message.getExtra());
+
+        OfflinePushExtInfo offlinePushExtInfo = new OfflinePushExtInfo();
         String sender = message.getSender();
-        String chatName = chatInfo.getChatName();
-        OfflineMessageBean entity = new OfflineMessageBean();
-        entity.content = description;
-        entity.sender = sender;
-        entity.nickname = chatName;
-        entity.faceUrl = TUIConfig.getSelfFaceUrl();
-        OfflineMessageContainerBean containerBean = new OfflineMessageContainerBean();
-        containerBean.entity = entity;
+        offlinePushExtInfo.getBusinessInfo().setDesc(description);
+        offlinePushExtInfo.getBusinessInfo().setSenderId(sender);
+        offlinePushExtInfo.getBusinessInfo().setFaceUrl(TUIConfig.getSelfFaceUrl());
+        String senderNickName = chatInfo.getChatName();
 
         String groupID = "";
-        boolean isGroup = false;
         if (chatInfo.getType() == V2TIMConversation.V2TIM_GROUP) {
             groupID = chatInfo.getId();
-            isGroup = true;
-            entity.chatType = V2TIMConversation.V2TIM_GROUP;
-            entity.sender = groupID;
+            offlinePushExtInfo.getBusinessInfo().setChatType(V2TIMConversation.V2TIM_GROUP);
+            offlinePushExtInfo.getBusinessInfo().setSenderId(groupID);
+            if (TextUtils.isEmpty(senderNickName)) {
+                senderNickName = groupID;
+            }
+        } else {
+            String selfNickName = TUIConfig.getSelfNickName();
+            if (TextUtils.isEmpty(selfNickName)) {
+                selfNickName = TUILogin.getLoginUser();
+            }
+            senderNickName = selfNickName;
         }
+        offlinePushExtInfo.getBusinessInfo().setSenderNickName(senderNickName);
+        offlinePushExtInfo.getConfigInfo().setFCMPushType(OfflinePushExtConfigInfo.FCM_PUSH_TYPE_DATA);
+        offlinePushExtInfo.getConfigInfo().setFCMNotificationType(OfflinePushExtConfigInfo.FCM_NOTIFICATION_TYPE_TIMPUSH);
+
+        // setCustomData Example
+        /*ChatInfo info = new ChatInfo();
+        info.setChatName("eeeee");
+        info.setId("32323");
+        offlinePushExtInfo.getEntity().setCustomData(new Gson().toJson(info).getBytes());*/
 
         V2TIMOfflinePushInfo v2TIMOfflinePushInfo = new V2TIMOfflinePushInfo();
-        if (!TextUtils.isEmpty(chatName)) {
-            v2TIMOfflinePushInfo.setTitle(chatName);
-        } else {
-            String title = isGroup ? groupID : sender;
-            if (!TextUtils.isEmpty(title)) {
-                v2TIMOfflinePushInfo.setTitle(title);
-            }
-        }
+        v2TIMOfflinePushInfo.setTitle(senderNickName);
 
         if (!TextUtils.isEmpty(description)) {
             v2TIMOfflinePushInfo.setDesc(description);
         }
-        v2TIMOfflinePushInfo.setExt(new Gson().toJson(containerBean).getBytes());
-        // OPPO必须设置ChannelID才可以收到推送消息，这个channelID需要和控制台一致
+        v2TIMOfflinePushInfo.setExt(new Gson().toJson(offlinePushExtInfo).getBytes());
         // OPPO must set a ChannelID to receive push messages. This channelID needs to be the same as the console.
         v2TIMOfflinePushInfo.setAndroidOPPOChannelID("tuikit");
         if (TUIChatConfigs.getConfigs().getGeneralConfig().isEnableAndroidPrivateRing()) {
@@ -431,7 +441,7 @@ public class ChatProvider {
 
                 @Override
                 public void onSuccess(V2TIMMessage v2TIMMessage) {
-                    TUIMessageBean data = ChatMessageParser.parseMessage(v2TIMMessage);
+                    TUIMessageBean data = ChatMessageParser.parsePresentMessage(v2TIMMessage);
                     TUIChatUtils.callbackOnSuccess(callBack, data);
                     Map<String, Object> param = new HashMap<>();
                     param.put(TUIConstants.TUIChat.CHAT_ID, id);
@@ -592,17 +602,40 @@ public class ChatProvider {
         });
     }
 
-    public void findMessage(List<String> msgIds, IUIKitCallback<List<TUIMessageBean>> callback) {
+    public void findPresentMessages(List<String> msgIds, IUIKitCallback<List<TUIMessageBean>> callback) {
+        findMessages(msgIds, new TUIValueCallback<List<TUIMessageBean>>() {
+            @Override
+            public void onSuccess(List<TUIMessageBean> messageBeans) {
+                List<TUIMessageBean> presentMessageList = new ArrayList<>();
+                if (messageBeans != null) {
+                    for (TUIMessageBean message : messageBeans) {
+                        if (message != null && message.getV2TIMMessage() != null
+                                && message.getV2TIMMessage().getStatus() != V2TIM_MSG_STATUS_HAS_DELETED) {
+                            presentMessageList.add(message);
+                        }
+                    }
+                }
+                TUIChatUtils.callbackOnSuccess(callback, presentMessageList);
+            }
+
+            @Override
+            public void onError(int errorCode, String errorMessage) {
+                TUIChatUtils.callbackOnError(callback, errorCode, errorMessage);
+            }
+        });
+    }
+
+    public void findMessages(List<String> msgIds, TUIValueCallback<List<TUIMessageBean>> callback) {
         V2TIMManager.getMessageManager().findMessages(msgIds, new V2TIMValueCallback<List<V2TIMMessage>>() {
             @Override
             public void onSuccess(List<V2TIMMessage> messages) {
                 List<TUIMessageBean> messageBeans = ChatMessageParser.parseMessageList(messages);
-                TUIChatUtils.callbackOnSuccess(callback, messageBeans);
+                TUIValueCallback.onSuccess(callback, messageBeans);
             }
 
             @Override
             public void onError(int code, String desc) {
-                TUIChatUtils.callbackOnError(callback, code, desc);
+                TUIValueCallback.onError(callback, code, desc);
             }
         });
     }
@@ -623,7 +656,7 @@ public class ChatProvider {
 
             @Override
             public void onSuccess(List<V2TIMMessage> v2TIMMessages) {
-                List<TUIMessageBean> messageInfoList = ChatMessageParser.parseMessageList(v2TIMMessages);
+                List<TUIMessageBean> messageInfoList = ChatMessageParser.parsePresentMessageList(v2TIMMessages);
                 TUIChatUtils.callbackOnSuccess(callback, Pair.create(messageInfoList, v2TIMMessages.size()));
             }
         });
@@ -635,7 +668,7 @@ public class ChatProvider {
             mergerElem.downloadMergerMessage(new V2TIMValueCallback<List<V2TIMMessage>>() {
                 @Override
                 public void onSuccess(List<V2TIMMessage> messageList) {
-                    List<TUIMessageBean> messageInfoList = ChatMessageParser.parseMessageList(messageList);
+                    List<TUIMessageBean> messageInfoList = ChatMessageParser.parsePresentMessageList(messageList);
                     TUIChatUtils.callbackOnSuccess(callback, messageInfoList);
                 }
 
@@ -716,7 +749,7 @@ public class ChatProvider {
         V2TIMManager.getMessageManager().modifyMessage(v2TIMMessage, new V2TIMCompleteCallback<V2TIMMessage>() {
             @Override
             public void onComplete(int code, String desc, V2TIMMessage v2TIMMessage) {
-                TUIMessageBean modifiedMessage = ChatMessageParser.parseMessage(v2TIMMessage);
+                TUIMessageBean modifiedMessage = ChatMessageParser.parsePresentMessage(v2TIMMessage);
                 if (code == ERR_SDK_MSG_MODIFY_CONFLICT) {
                     TUIChatUtils.callbackOnError(callback, code, desc, modifiedMessage);
                 } else {
@@ -904,6 +937,27 @@ public class ChatProvider {
         }
     }
 
+    public void getGroupInfo(String groupID, TUIValueCallback<V2TIMGroupInfo> callback) {
+        V2TIMManager.getGroupManager().getGroupsInfo(Collections.singletonList(groupID), new V2TIMValueCallback<List<V2TIMGroupInfoResult>>() {
+            @Override
+            public void onSuccess(List<V2TIMGroupInfoResult> v2TIMGroupInfoResults) {
+                if (!v2TIMGroupInfoResults.isEmpty()) {
+                    V2TIMGroupInfoResult result = v2TIMGroupInfoResults.get(0);
+                    if (result.getResultCode() == ERR_SUCC) {
+                        TUIValueCallback.onSuccess(callback, result.getGroupInfo());
+                    } else {
+                        TUIValueCallback.onError(callback, result.getResultCode(), result.getResultMessage());
+                    }
+                }
+            }
+
+            @Override
+            public void onError(int code, String desc) {
+                TUIValueCallback.onError(callback, code, desc);
+            }
+        });
+    }
+
     public void getChatFaceUrl(String chatID, boolean isGroup, IUIKitCallback<String> callback) {
         if (isGroup) {
             V2TIMManager.getGroupManager().getGroupsInfo(Collections.singletonList(chatID), new V2TIMValueCallback<List<V2TIMGroupInfoResult>>() {
@@ -962,5 +1016,39 @@ public class ChatProvider {
                     TUIChatUtils.callbackOnError(callback, code, desc);
                 }
             });
+    }
+
+    public void pinGroupMessage(String groupID, TUIMessageBean messageBean, boolean isPinned, TUICallback callback) {
+        if (messageBean == null || messageBean.getV2TIMMessage() == null) {
+            TUICallback.onError(callback, -1, "message is null");
+            return;
+        }
+        V2TIMMessage v2TIMMessage = messageBean.getV2TIMMessage();
+        V2TIMManager.getMessageManager().pinGroupMessage(groupID, v2TIMMessage, isPinned, new V2TIMCallback() {
+            @Override
+            public void onSuccess() {
+                TUICallback.onSuccess(callback);
+            }
+
+            @Override
+            public void onError(int code, String desc) {
+                TUICallback.onError(callback, code, desc);
+            }
+        });
+    }
+
+    public void getGroupPinnedMessageList(String groupID, TUIValueCallback<List<TUIMessageBean>> callback) {
+        V2TIMManager.getMessageManager().getPinnedGroupMessageList(groupID, new V2TIMValueCallback<List<V2TIMMessage>>() {
+            @Override
+            public void onSuccess(List<V2TIMMessage> v2TIMMessages) {
+                List<TUIMessageBean> pinnedMessages = ChatMessageParser.parseMessageList(v2TIMMessages);
+                TUIValueCallback.onSuccess(callback, pinnedMessages);
+            }
+
+            @Override
+            public void onError(int code, String desc) {
+                TUIValueCallback.onError(callback, code, desc);
+            }
+        });
     }
 }

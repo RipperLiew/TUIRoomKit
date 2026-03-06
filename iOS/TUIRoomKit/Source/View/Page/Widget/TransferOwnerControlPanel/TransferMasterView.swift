@@ -2,7 +2,7 @@
 //  TransferMasterView.swift
 //  TUIRoomKit
 //
-//  Created by 唐佳宁 on 2023/2/20.
+//  Created by janejntang on 2023/2/20.
 //
 
 import Foundation
@@ -13,27 +13,31 @@ class TransferMasterView: UIView {
     var searchArray: [UserEntity] = []
     private var isSearching: Bool = false
     
-    let backButton: UIButton = {
-        let button = UIButton()
-        button.contentVerticalAlignment = .center
-        button.contentHorizontalAlignment = isRTL ? .right : .left
-        button.setTitleColor(UIColor(0xADB6CC), for: .normal)
-        let image = UIImage(named: "room_back_white", in: tuiRoomKitBundle(), compatibleWith: nil)?.checkOverturn()
-        button.setImage(image, for: .normal)
-        button.setTitle(.videoConferenceTitle, for: .normal)
-        button.titleLabel?.font = UIFont(name: "PingFangSC-Regular", size: 18)
-        button.titleEdgeInsets = UIEdgeInsets(top: 0, left: 25, bottom: 0, right: 0)
-        button.imageEdgeInsets = UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 0)
-        return button
+    let topLabel: UILabel = {
+        let label = UILabel()
+        label.textColor = UIColor(0xD5E0F2)
+        label.font = UIFont(name: "PingFangSC-Regular", size: 16)
+        label.text = .transferMasterText
+        return label
     }()
     
     let searchBar: UISearchBar = {
         let searchBar = UISearchBar()
         searchBar.placeholder = .searchMemberText
         searchBar.setBackgroundImage(UIColor(0x1B1E26).trans2Image(), for: .top, barMetrics: .default)
-        searchBar.searchTextField.textColor = UIColor(0xB2BBD1)
-        searchBar.searchTextField.tintColor = UIColor(0xB2BBD1).withAlphaComponent(0.3)
-        searchBar.searchTextField.layer.cornerRadius = 6
+        if #available(iOS 13, *) {
+            searchBar.searchTextField.textColor = UIColor(0xB2BBD1)
+            searchBar.searchTextField.tintColor = UIColor(0xB2BBD1).withAlphaComponent(0.3)
+            searchBar.searchTextField.layer.cornerRadius = 6
+            searchBar.searchTextField.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+        } else {
+            if let textField = searchBar.value(forKey: "searchField") as? UITextField {
+                textField.textColor = UIColor(0xB2BBD1)
+                textField.tintColor = UIColor(0xB2BBD1).withAlphaComponent(0.3)
+                textField.layer.cornerRadius = 6
+                textField.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+            }
+        }
         return searchBar
     }()
     
@@ -49,7 +53,8 @@ class TransferMasterView: UIView {
         button.titleLabel?.font = UIFont.systemFont(ofSize: 14)
         button.setTitle(.appointAndLeaveRoomText, for: .normal)
         button.setTitleColor(UIColor(0xFFFFFF), for: .normal)
-        button.backgroundColor = UIColor(0x006EFF)
+        button.setBackgroundImage(UIColor(0x006EFF).withAlphaComponent(0.2).trans2Image(), for: .disabled)
+        button.setBackgroundImage(UIColor(0x006EFF).trans2Image(), for: .normal)
         button.layer.cornerRadius = 12
         button.clipsToBounds = true
         button.titleLabel?.adjustsFontSizeToFitWidth = true
@@ -63,7 +68,7 @@ class TransferMasterView: UIView {
         tableView.delegate = self
         tableView.dataSource = self
         tableView.backgroundColor = UIColor(0x1B1E26)
-        tableView.register(UserListCell.self, forCellReuseIdentifier: "RaiseHandCell")
+        tableView.register(TransferMasterTableCell.self, forCellReuseIdentifier: "RaiseHandCell")
         return tableView
     }()
     
@@ -89,7 +94,7 @@ class TransferMasterView: UIView {
     }
     
     func constructViewHierarchy() {
-        addSubview(backButton)
+        addSubview(topLabel)
         addSubview(searchBar)
         addSubview(transferMasterTableView)
         addSubview(appointMasterButton)
@@ -97,17 +102,17 @@ class TransferMasterView: UIView {
     }
     
     func activateConstraints() {
-        backButton.snp.makeConstraints { make in
-            make.leading.equalToSuperview()
-            make.top.equalTo(safeAreaLayoutGuide.snp.top)
-            make.height.equalTo(20)
-            make.width.equalTo(200)
+        topLabel.snp.makeConstraints { make in
+            make.top.equalToSuperview().offset(10.scale375Height())
+            make.leading.equalToSuperview().offset(16.scale375())
+            make.trailing.equalToSuperview().offset(-16.scale375())
+            make.height.equalTo(24.scale375Height())
         }
         searchBar.snp.makeConstraints { make in
             make.leading.equalToSuperview().offset(16.scale375())
             make.trailing.equalToSuperview().offset(-16.scale375())
             make.height.equalTo(34.scale375Height())
-            make.top.equalTo(backButton.snp.bottom).offset(23.scale375Height())
+            make.top.equalTo(topLabel.snp.bottom).offset(23.scale375Height())
         }
         transferMasterTableView.snp.makeConstraints { make in
             make.leading.equalToSuperview().offset(16.scale375())
@@ -129,16 +134,10 @@ class TransferMasterView: UIView {
     func bindInteraction() {
         searchBar.delegate = self
         viewModel.viewResponder = self
-        backButton.addTarget(self, action: #selector(backAction(sender:)), for: .touchUpInside)
         appointMasterButton.addTarget(self, action: #selector(appointMasterAction(sender:)), for: .touchUpInside)
         let tap = UITapGestureRecognizer(target: self, action: #selector(hideSearchControl(sender:)))
         searchControl.addGestureRecognizer(tap)
-    }
-    
-    @objc func backAction(sender: UIButton) {
-        searchBar.endEditing(true)
-        searchBar.searchTextField.resignFirstResponder()
-        viewModel.backAction()
+        appointMasterButton.isEnabled = viewModel.userId.count > 0
     }
     
     @objc func appointMasterAction(sender: UIButton) {
@@ -146,7 +145,11 @@ class TransferMasterView: UIView {
     }
     
     @objc func hideSearchControl(sender: UIView) {
-        searchBar.searchTextField.resignFirstResponder()
+        if #available(iOS 13, *) {
+            searchBar.searchTextField.resignFirstResponder()
+        } else {
+            searchBar.resignFirstResponder()
+        }
         searchControl.isHidden = true
     }
     
@@ -195,8 +198,13 @@ extension TransferMasterView: UITableViewDelegate {
     
     internal func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         searchBar.endEditing(true)
-        searchBar.searchTextField.resignFirstResponder()
+        if #available(iOS 13, *) {
+            searchBar.searchTextField.resignFirstResponder()
+        } else {
+            searchBar.resignFirstResponder()
+        }
         viewModel.userId = attendeeList[indexPath.row].userId
+        appointMasterButton.isEnabled = true
         transferMasterTableView.reloadData()
     }
     internal func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
@@ -204,7 +212,7 @@ extension TransferMasterView: UITableViewDelegate {
     }
 }
 
-extension  TransferMasterView: TransferMasterViewResponder {
+extension TransferMasterView: TransferMasterViewResponder {
     func makeToast(message: String) {
         makeToast(message)
     }
@@ -217,7 +225,11 @@ extension  TransferMasterView: TransferMasterViewResponder {
     
     func searchControllerChangeActive(isActive: Bool) {
         searchBar.endEditing(!isActive)
-        searchBar.searchTextField.resignFirstResponder()
+        if #available(iOS 13, *) {
+            searchBar.searchTextField.resignFirstResponder()
+        } else {
+            searchBar.resignFirstResponder()
+        }
     }
 }
 
@@ -333,15 +345,12 @@ class TransferMasterTableCell: UITableViewCell {
 
 private extension String {
     static var transferMasterText: String {
-        localized("TUIRoom.trans.master")
+        localized("Appoint a new master")
     }
     static var searchMemberText: String {
-        localized("TUIRoom.search.meeting.member")
+        localized("Search for participants")
     }
     static var appointAndLeaveRoomText: String {
-        localized("TUIRoom.appoint.master.and.leave.room")
-    }
-    static var videoConferenceTitle: String {
-        localized("TUIRoom.video.conference.title")
+        localized("Appoint and leave")
     }
 }

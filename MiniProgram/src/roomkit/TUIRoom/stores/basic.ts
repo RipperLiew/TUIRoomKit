@@ -1,40 +1,78 @@
 import { defineStore } from 'pinia';
-import { SpeechMode } from '../constants/room';
 import { getLanguage } from '../utils/common';
 import { LAYOUT } from '../constants/render';
 import { isUndefined } from '../utils/utils';
-import { isWeChat, isElectron } from '../utils/environment';
+import { isWeChat, isElectron, isMobile } from '../utils/environment';
+import { TUINetwork } from '@tencentcloud/tuiroom-engine-wx';
 
-type SideBarType = 'chat' | 'invite' | 'manage-member' | 'more' | 'transfer-leave' | 'apply' | '';
+type SideBarType =
+  | 'chat'
+  | 'invite'
+  | 'manage-member'
+  | 'more'
+  | 'transfer-leave'
+  | 'apply'
+  | 'aiTranscription'
+  | '';
+type SceneType = 'chat' | 'default';
+
+function getDefaultLayout() {
+  if (isMobile) {
+    return isWeChat ? LAYOUT.SIX_EQUAL_POINTS : LAYOUT.LARGE_SMALL_WINDOW;
+  }
+  return LAYOUT.NINE_EQUAL_POINTS;
+}
 
 interface BasicState {
-  sdkAppId: number,
-  userId: string,
-  userSig: string,
-  userName: string,
-  avatarUrl?: string,
-  useStringRoomId: boolean,
-  roomId: string,
-  roomMode: 'FreeSpeech' | 'ApplySpeech',
-  isSidebarOpen: boolean,
-  showSettingDialog: boolean,
-  showApplyUserList: boolean,
-  activeSettingTab: string,
-  layout: LAYOUT,
-  isLocalStreamMirror: boolean,
-  isFrontCamera: boolean,
-  sidebarName: SideBarType,
-  masterUserId: string,
-  localQuality: number,
-  // statistics: TRTCStatistics,
-  lang: string,
-  defaultTheme: string,
-  isSupportSwitchTheme: boolean,
-  showHeaderTool: boolean,
-  shareLink: string,
-  isRoomLinkVisible: boolean,
-  isShowScreenShareAntiFraud: boolean,
-  isOpenMic: boolean,
+  sdkAppId: number;
+  userId: string;
+  userSig: string;
+  userName: string;
+  avatarUrl?: string;
+  useStringRoomId: boolean;
+  roomId: string;
+  roomMode: 'FreeSpeech' | 'ApplySpeech';
+  isSidebarOpen: boolean;
+  showSettingDialog: boolean;
+  showApplyUserList: boolean;
+  activeSettingTab: string;
+  layout: LAYOUT;
+  isLocalStreamMirror: boolean;
+  isFrontCamera: boolean;
+  sidebarName: SideBarType;
+  masterUserId: string;
+  localQuality: number;
+  networkInfo: TUINetwork;
+  lang: string;
+  defaultTheme: string;
+  isSupportSwitchTheme: boolean;
+  showHeaderTool: boolean;
+  shareLink: string;
+  isRoomLinkVisible: boolean;
+  isSchemeLinkVisible: boolean;
+  isShowScreenShareAntiFraud: boolean;
+  isExperiencedAI: boolean;
+  isOpenMic: boolean;
+  scene: SceneType;
+  componentConfig: {
+    InviteControl: {
+      visible?: boolean;
+      [key: string]: any;
+    };
+    SwitchTheme: {
+      visible?: boolean;
+      [key: string]: any;
+    };
+    RoomLink: {
+      visible?: boolean;
+      [key: string]: any;
+    };
+    [key: string]: {
+      visible?: boolean;
+      [key: string]: any;
+    };
+  };
+  showRoomTool: boolean;
 }
 
 export const useBasicStore = defineStore('basic', {
@@ -48,7 +86,7 @@ export const useBasicStore = defineStore('basic', {
     roomId: '',
     roomMode: 'FreeSpeech',
     isSidebarOpen: false,
-    layout: isWeChat ? LAYOUT.SIX_EQUAL_POINTS :  LAYOUT.NINE_EQUAL_POINTS,
+    layout: getDefaultLayout(),
     showSettingDialog: false,
     showApplyUserList: false,
     activeSettingTab: 'audio',
@@ -57,46 +95,38 @@ export const useBasicStore = defineStore('basic', {
     sidebarName: '',
     masterUserId: '',
     localQuality: 0,
-    // statistics: {
-    //   appCpu: 0,
-    //   downLoss: 0,
-    //   localStatisticsArray: [],
-    //   localStatisticsArraySize: 0,
-    //   receivedBytes: 0,
-    //   remoteStatisticsArray: [],
-    //   remoteStatisticsArraySize: 0,
-    //   rtt: 0,
-    //   sentBytes: 0,
-    //   systemCpu: 0,
-    //   upLoss: 0,
-    // },
+    networkInfo: {
+      userId: '',
+      downLoss: 0,
+      quality: 0,
+      upLoss: 0,
+      delay: 0,
+    },
     lang: getLanguage(),
-    defaultTheme: 'black',
+    defaultTheme: 'dark',
     isSupportSwitchTheme: true,
     showHeaderTool: true,
     shareLink: '',
     isRoomLinkVisible: !isElectron && !isWeChat,
+    isSchemeLinkVisible: !isMobile,
     isShowScreenShareAntiFraud: false,
+    isExperiencedAI: false,
     isOpenMic: false,
+    componentConfig: {
+      SwitchTheme: {
+        visible: true,
+      },
+      InviteControl: {
+        visible: true,
+      },
+      RoomLink: {
+        visible: true,
+      },
+    },
+    scene: 'default',
+    showRoomTool: true,
   }),
-  getters: {
-    // localVideoBitrate: (state) => {
-    //   const localStatistics = state.statistics.localStatisticsArray
-    //     .find(item => item.streamType === TRTCVideoStreamType.TRTCVideoStreamTypeBig);
-    //   if (localStatistics && localStatistics.videoBitrate)  {
-    //     return localStatistics.videoBitrate;
-    //   }
-    //   return 0;
-    // },
-    // localFrameRate: (state) => {
-    //   const localStatistics = state.statistics.localStatisticsArray
-    //     .find(item => item.streamType === TRTCVideoStreamType.TRTCVideoStreamTypeBig);
-    //   if (localStatistics && localStatistics.frameRate)  {
-    //     return localStatistics.frameRate;
-    //   }
-    //   return 0;
-    // },
-  },
+  getters: {},
   actions: {
     setSdkAppId(sdkAppId: number) {
       this.sdkAppId = sdkAppId;
@@ -116,9 +146,6 @@ export const useBasicStore = defineStore('basic', {
     setRoomId(roomId: string) {
       this.roomId = roomId;
       this.useStringRoomId = typeof roomId === 'string';
-    },
-    setRoomMode(mode: SpeechMode) {
-      this.roomMode = mode;
     },
     setSidebarOpenStatus(isOpen: boolean) {
       this.isSidebarOpen = isOpen;
@@ -159,43 +186,72 @@ export const useBasicStore = defineStore('basic', {
     setIsRoomLinkVisible(isRoomLinkVisible: boolean) {
       this.isRoomLinkVisible = isRoomLinkVisible;
     },
+    setIsSchemeLinkVisible(isSchemeLinkVisible: boolean) {
+      this.isSchemeLinkVisible = isSchemeLinkVisible;
+    },
     setIsShowScreenShareAntiFraud(isShowScreenShareAntiFraud: boolean) {
       this.isShowScreenShareAntiFraud = isShowScreenShareAntiFraud;
+    },
+    setIsExperiencedAI(isExperiencedAI: boolean) {
+      this.isExperiencedAI = isExperiencedAI;
     },
     setBasicInfo(infoObj: any) {
       if (!infoObj) {
         return;
       }
-      const { sdkAppId, userId, userSig, userName, avatarUrl, roomId, theme, showHeaderTool } = infoObj;
+      const {
+        sdkAppId,
+        userId,
+        userSig,
+        userName,
+        avatarUrl,
+        roomId,
+        theme,
+        showHeaderTool,
+      } = infoObj;
       sdkAppId && this.setSdkAppId(sdkAppId);
       userId && this.setUserId(userId);
       userSig && this.setUserSig(userSig);
       userName && this.setUserName(userName);
       avatarUrl && this.setAvatarUrl(avatarUrl);
       roomId && this.setRoomId(roomId);
-      theme && !isUndefined(theme.defaultTheme) && this.setDefaultTheme(theme.defaultTheme);
-      theme && !isUndefined(theme.isSupportSwitchTheme) && this.setIsSupportSwitchTheme(theme.isSupportSwitchTheme);
+      theme &&
+        !isUndefined(theme.defaultTheme) &&
+        this.setDefaultTheme(theme.defaultTheme);
+      theme &&
+        !isUndefined(theme.isSupportSwitchTheme) &&
+        this.setIsSupportSwitchTheme(theme.isSupportSwitchTheme);
       !isUndefined(showHeaderTool) && this.setShowHeaderTool(showHeaderTool);
     },
     setMasterUserId(userId: string) {
       this.masterUserId = userId;
     },
     setLocalQuality(userNetworkList: any[]) {
-      const localUser = userNetworkList.find(item => item.userId === this.userId);
+      const localUser = userNetworkList.find(
+        item => item.userId === this.userId
+      );
       this.localQuality = localUser.quality;
     },
-    // setStatistics(statistics: TRTCStatistics) {
-    //   this.statistics = statistics;
-    // },
+    setNetworkInfo(networkInfo: TUINetwork) {
+      if (networkInfo.userId === this.userId) {
+        this.networkInfo = networkInfo;
+      }
+    },
     setLang(lang: string) {
       this.lang = lang;
     },
     setIsOpenMic(isOpen: boolean) {
       this.isOpenMic = isOpen;
     },
+    setScene(scene: SceneType) {
+      this.scene = scene;
+    },
+    setShowRoomTool(isShow: boolean) {
+      this.showRoomTool = isShow;
+    },
     reset() {
       this.isSidebarOpen = false;
-      this.layout = isWeChat ? LAYOUT.SIX_EQUAL_POINTS :  LAYOUT.NINE_EQUAL_POINTS;
+      this.layout = getDefaultLayout();
       this.showSettingDialog = false;
       this.activeSettingTab = 'audio';
       this.isLocalStreamMirror = true;
@@ -210,6 +266,8 @@ export const useBasicStore = defineStore('basic', {
       this.showHeaderTool = true;
       this.shareLink = '';
       this.isOpenMic = false;
+      this.showRoomTool = false;
+      this.isExperiencedAI = false;
     },
   },
 });

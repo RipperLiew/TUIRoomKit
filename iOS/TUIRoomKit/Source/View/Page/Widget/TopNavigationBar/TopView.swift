@@ -2,7 +2,7 @@
 //  TopView.swift
 //  TUIRoomKit
 //
-//  Created by 唐佳宁 on 2022/12/30.
+//  Created by janejntang on 2022/12/30.
 //  Copyright © 2022 Tencent. All rights reserved.
 //
 
@@ -27,7 +27,7 @@ class TopView: UIView {
         let view = UIStackView()
         view.axis = .horizontal
         view.alignment = .center
-        view.spacing = 24.scale375()
+        view.spacing = 2.scale375()
         return view
     }()
     
@@ -40,8 +40,7 @@ class TopView: UIView {
         let label = UILabel()
         label.textColor = UIColor(0xD5E0F2)
         label.font = UIFont(name: "PingFangSC-Medium", size: 16)
-        label.textAlignment = isRTL ? .left : .right
-        label.adjustsFontSizeToFitWidth = true
+        label.textAlignment = isRTL ? .right : .left
         label.lineBreakMode = .byTruncatingTail
         return label
     }()
@@ -84,8 +83,6 @@ class TopView: UIView {
         return label
     }()
     
-    var menuButtons: [UIView] = []
-    
     // MARK: - initialized function
     init(viewModel: TopViewModel) {
         self.viewModel = viewModel
@@ -106,9 +103,6 @@ class TopView: UIView {
         activateConstraints()
         bindInteraction()
         isViewReady = true
-#if RTCube_APPSTORE
-        injectReport()
-#endif
     }
     
     func constructViewHierarchy() {
@@ -123,46 +117,30 @@ class TopView: UIView {
         exitView.addSubview(exitImage)
         exitView.addSubview(exitLabel)
         for item in viewModel.viewItems {
-            let view = TopItemView(itemData: item)
-            menuButtons.append(view)
-            stackView.addArrangedSubview(view)
-            viewArray.append(view)
-            let size = item.size ?? CGSize(width: 20.scale375(), height: 20.scale375())
-            view.snp.makeConstraints { make in
-                make.height.equalTo(size.height)
-                make.width.equalTo(size.width)
-            }
+            addStackArrangedSubview(item: item)
         }
     }
     
     func activateConstraints() {
+        updateRootViewOrientation(isLandscape: isLandscape)
         backgroundImageView.snp.makeConstraints { make in
             make.edges.equalToSuperview()
         }
-        contentView.snp.makeConstraints { make in
-            make.leading.trailing.bottom.equalToSuperview()
-            make.top.equalToSuperview().offset(44.scale375Height())
+        meetingTitleView.snp.makeConstraints { make in
+            make.width.lessThanOrEqualTo(180.scale375())
+            make.height.equalTo(44.scale375Height())
+            make.center.equalToSuperview()
         }
         stackView.snp.makeConstraints { make in
             make.leading.equalToSuperview().offset(16.scale375())
             make.top.bottom.equalToSuperview()
-            make.width.equalTo(64.scale375())
-        }
-        meetingTitleView.snp.makeConstraints { make in
-            make.width.equalTo(129.scale375())
-            make.height.equalTo(44.scale375Height())
-            make.centerX.centerY.equalToSuperview()
+            make.trailing.lessThanOrEqualTo(meetingNameLabel.snp.leading).offset(-2)
         }
         meetingNameLabel.snp.makeConstraints { make in
-            make.leading.equalToSuperview()
             make.top.equalToSuperview()
             make.height.equalTo(24.scale375())
-            make.width.equalTo(111.scale375())
-        }
-        dropDownButton.snp.makeConstraints { make in
-            make.leading.equalTo(meetingNameLabel.snp.trailing).offset(2.scale375())
-            make.centerY.equalTo(meetingNameLabel)
-            make.width.height.equalTo(16.scale375())
+            make.width.lessThanOrEqualTo(128.scale375())
+            make.leading.equalToSuperview()
         }
         timeLabel.snp.makeConstraints { make in
             make.top.equalTo(meetingNameLabel.snp.bottom).offset(5)
@@ -191,41 +169,47 @@ class TopView: UIView {
     func bindInteraction() {
         let dropTap = UITapGestureRecognizer(target: self, action: #selector(dropDownAction(sender:)))
         let exitTap = UITapGestureRecognizer(target: self, action: #selector(exitAction(sender:)))
-        var namelabel = viewModel.engineManager.store.roomInfo.name + .quickMeetingText
-        if namelabel.count > 10 {
-            namelabel = namelabel.prefix(9) + "..."
-        }
-        meetingNameLabel.text = namelabel
+        meetingNameLabel.text = viewModel.engineManager.store.roomInfo.name
         meetingTitleView.addGestureRecognizer(dropTap)
         exitView.addGestureRecognizer(exitTap)
         viewModel.viewResponder = self
-        viewModel.updateTimerLabelText()
     }
     
     func updateRootViewOrientation(isLandscape: Bool) {
-        if isLandscape { //横屏时，会议时间放在会议名称的右边
-            contentView.snp.updateConstraints() { make in
+        contentView.snp.remakeConstraints { make in
+            if isLandscape {
                 make.top.equalToSuperview()
-            }
-            timeLabel.snp.remakeConstraints() { make in
-                make.centerY.equalTo(dropDownButton)
-                make.leading.equalTo(dropDownButton.snp.trailing).offset(15)
-            }
-            meetingTitleView.snp.updateConstraints { make in
-                make.width.equalTo(150.scale375())
-                make.height.equalTo(24.scale375Height())
-            }
-        } else { //竖屏时，会议时间放在会议名称的下边
-            contentView.snp.updateConstraints() { make in
+            } else {
                 make.top.equalToSuperview().offset(44.scale375Height())
             }
-            timeLabel.snp.remakeConstraints { make in
+            make.leading.trailing.bottom.equalToSuperview()
+        }
+        meetingTitleView.snp.remakeConstraints { make in
+            if isLandscape {
+                make.width.lessThanOrEqualTo(300.scale375())
+                make.height.equalTo(24.scale375Height())
+            } else {
+                make.width.lessThanOrEqualTo(180.scale375())
+                make.height.equalTo(44.scale375Height())
+            }
+            make.center.equalToSuperview()
+        }
+        dropDownButton.snp.remakeConstraints { make in
+            make.leading.equalTo(meetingNameLabel.snp.trailing).offset(2.scale375())
+            make.centerY.equalTo(meetingNameLabel)
+            make.width.height.equalTo(16.scale375())
+            if !isLandscape {
+                make.trailing.equalToSuperview()
+            }
+        }
+        timeLabel.snp.remakeConstraints { make in
+            if isLandscape {
+                make.centerY.equalTo(dropDownButton)
+                make.leading.equalTo(dropDownButton.snp.trailing).offset(15)
+                make.trailing.equalToSuperview()
+            } else {
                 make.top.equalTo(meetingNameLabel.snp.bottom).offset(5)
                 make.centerX.equalToSuperview()
-            }
-            meetingTitleView.snp.updateConstraints { make in
-                make.width.equalTo(129.scale375())
-                make.height.equalTo(44.scale375Height())
             }
         }
     }
@@ -236,6 +220,17 @@ class TopView: UIView {
     
     @objc func exitAction(sender: UIView) {
         viewModel.exitAction(sender: sender)
+    }
+    
+    private func addStackArrangedSubview(item: ButtonItemData) {
+        let view = TopItemView(itemData: item)
+        stackView.addArrangedSubview(view)
+        viewArray.append(view)
+        let size = item.size ?? CGSize(width: 35.scale375(), height: 40.scale375Height())
+        view.snp.makeConstraints { make in
+            make.height.equalTo(size.height)
+            make.width.equalTo(size.width)
+        }
     }
     
     deinit {
@@ -251,6 +246,10 @@ enum AlertAction {
 }
 
 extension TopView: TopViewModelResponder {
+    func updateMeetingNameLabel(_ text: String) {
+        meetingNameLabel.text = text
+    }
+    
     func updateStackView(item: ButtonItemData) {
         guard let view = viewArray.first(where: { $0.itemData.buttonType == item.buttonType }) else { return }
         view.setupViewState(item: item)
@@ -259,68 +258,46 @@ extension TopView: TopViewModelResponder {
     func updateTimerLabel(text: String) {
         self.timeLabel.text = text
     }
-}
-
-#if RTCube_APPSTORE
-extension TopView {
-
-    func injectReport() {
-        if viewModel.store.currentUser.userId == viewModel.store.roomInfo.roomId {
-           return
-        }
-        guard let menuView =  menuButtons.first else{ return}
-        let reportBtn = UIButton(type: .custom)
-        reportBtn.setImage(UIImage(named: "room_report", in: tuiRoomKitBundle(), compatibleWith: nil), for: .normal)
-        reportBtn.adjustsImageWhenHighlighted = false
-        
-        addSubview(reportBtn)
-        reportBtn.snp.makeConstraints({ make in
-            make.centerY.equalTo(menuView.snp.centerY)
-            make.trailing.equalTo(menuView.snp.leading).offset(-10)
-            make.width.height.equalTo(menuView)
-        })
-        reportBtn.addTarget(self, action: #selector(clickReport), for: .touchUpInside)
-
+    
+    func addStackSubview(item: ButtonItemData) {
+        addStackArrangedSubview(item: item)
     }
     
-    @objc func clickReport() {
+#if RTCube_APPSTORE
+    func showReportView() {
         let selector = NSSelectorFromString("showReportAlertWithRoomId:ownerId:")
         if responds(to: selector) {
             let roomInfo = viewModel.store.roomInfo
             perform(selector, with: roomInfo.roomId, with: roomInfo.ownerId)
         }
     }
-    
-}
 #endif
+}
 
 private extension String {
     static var leaveRoomTitle: String {
-        localized("TUIRoom.sure.leave.room")
+        localized("Are you sure you want to leave the conference?")
     }
     static var destroyRoomTitle: String {
-        localized("TUIRoom.sure.destroy.room")
+        localized("Are you sure you want to end the conference?")
     }
     static var dismissMeetingTitle: String {
-        localized("TUIRoom.dismiss.meeting.Title")
+        localized("If you don't want to end the conference")
     }
     static var appointNewHostText: String {
-        localized("TUIRoom.appoint.new.host")
+        localized("Please appoint a new host before leaving the conference")
     }
     static var leaveMeetingText: String {
-        localized("TUIRoom.leave.meeting")
+        localized("Leave conference")
     }
     static var dismissMeetingText: String {
-        localized("TUIRoom.dismiss.meeting")
+        localized("End conference")
     }
     static var cancelText: String {
-        localized("TUIRoom.cancel")
+        localized("Cancel")
     }
     static var exitText: String {
-        localized("TUIRoom.exit")
-    }
-    static var quickMeetingText: String {
-        localized("TUIRoom.video.conference")
+        localized("Exit")
     }
 }
 

@@ -1,12 +1,10 @@
 package com.tencent.qcloud.tuikit.tuichat.classicui.widget.message.reply;
 
-import android.app.Activity;
 import android.content.Context;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.FrameLayout;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -19,6 +17,7 @@ import com.tencent.qcloud.tuikit.timcommon.bean.TUIMessageBean;
 import com.tencent.qcloud.tuikit.timcommon.component.face.FaceManager;
 import com.tencent.qcloud.tuikit.timcommon.component.gatherimage.UserIconView;
 import com.tencent.qcloud.tuikit.timcommon.util.DateTimeUtil;
+import com.tencent.qcloud.tuikit.timcommon.util.TextUtil;
 import com.tencent.qcloud.tuikit.tuichat.R;
 import java.util.ArrayList;
 import java.util.Date;
@@ -29,8 +28,6 @@ import java.util.Map;
 public class ReplyDetailsView extends RecyclerView {
     private ReplyDetailsAdapter adapter;
     private LinearLayoutManager layoutManager;
-    private FrameLayout bottomContentFrameLayout;
-    private Activity activity;
 
     public ReplyDetailsView(@NonNull Context context) {
         super(context);
@@ -59,10 +56,6 @@ public class ReplyDetailsView extends RecyclerView {
         adapter.notifyDataSetChanged();
     }
 
-    public void setActivity(Activity activity) {
-        this.activity = activity;
-    }
-
     public class ReplyDetailsAdapter extends Adapter<ReplyDetailsViewHolder> {
         Map<MessageRepliesBean.ReplyBean, TUIMessageBean> data;
 
@@ -74,7 +67,6 @@ public class ReplyDetailsView extends RecyclerView {
         @Override
         public ReplyDetailsViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
             View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.chat_reply_details_item_layout, parent, false);
-            bottomContentFrameLayout = view.findViewById(R.id.bottom_content_fl);
             return new ReplyDetailsViewHolder(view);
         }
 
@@ -98,8 +90,9 @@ public class ReplyDetailsView extends RecyclerView {
             holder.userFaceView.setIconUrls(iconList);
             holder.userNameTv.setText(userName);
             FaceManager.handlerEmojiText(holder.messageText, messageText, false);
-
-            setBottomContent(messageBean);
+            TextUtil.linkifyUrls(holder.messageText);
+            holder.messageText.setActivated(true);
+            setBottomContent(messageBean, holder);
         }
 
         @Override
@@ -111,12 +104,12 @@ public class ReplyDetailsView extends RecyclerView {
         }
     }
 
-    private void setBottomContent(TUIMessageBean msg) {
+    private void setBottomContent(TUIMessageBean msg, ReplyDetailsViewHolder holder) {
         HashMap<String, Object> param = new HashMap<>();
         param.put(TUIConstants.TUIChat.MESSAGE_BEAN, msg);
         param.put(TUIConstants.TUIChat.CHAT_RECYCLER_VIEW, ReplyDetailsView.this);
 
-        TUICore.raiseExtension(TUIConstants.TUIChat.Extension.MessageBottom.CLASSIC_EXTENSION_ID, bottomContentFrameLayout, param);
+        TUICore.raiseExtension(TUIConstants.TUIChat.Extension.MessageBottom.CLASSIC_EXTENSION_ID, holder.bottomContentFrameLayout, param);
     }
 
     static class ReplyDetailsViewHolder extends ViewHolder {
@@ -124,6 +117,7 @@ public class ReplyDetailsView extends RecyclerView {
         protected TextView userNameTv;
         protected TextView messageText;
         protected TextView timeText;
+        protected View bottomContentFrameLayout;
 
         public ReplyDetailsViewHolder(View itemView) {
             super(itemView);
@@ -131,6 +125,7 @@ public class ReplyDetailsView extends RecyclerView {
             userNameTv = itemView.findViewById(R.id.user_name_tv);
             messageText = itemView.findViewById(R.id.msg_abstract);
             timeText = itemView.findViewById(R.id.msg_time);
+            bottomContentFrameLayout = itemView.findViewById(R.id.bottom_content_fl);
         }
     }
 }

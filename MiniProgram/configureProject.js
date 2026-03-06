@@ -105,8 +105,7 @@ class InitProject {
   copyFile() {
     const { creationMethod, createViteConfig, createTsConfig } = this.answers;
 
-    // Copy roomkit and locales directories
-    ['roomkit', 'locales', 'router'].forEach((dir) => {
+    ['roomkit'].forEach((dir) => {
       copyDir(
         path.join(this.sourceBase, './src', dir),
         path.join(this.srcPath, dir),
@@ -120,12 +119,18 @@ class InitProject {
         path.join(this.destBase, file),
       );
     });
+    ['wxmini_dev.bat', 'wxmini_prod.bat'].forEach((file) => {
+      fs.copyFileSync(
+        path.join(this.sourceBase, file),
+        path.join(this.destBase, file),
+      );
+    });
 
-    // Copy TUIRoomEngine.wasm.br file
-    const wasmDest = './static/TUIRoomEngine.wasm.br';
+    // Copy RTCRoomEngine.wasm.br file
+    const wasmDest = './static/RTCRoomEngine.wasm.br';
     createDirIfNotExist(path.dirname(wasmDest));
     fs.copyFileSync(
-      './node_modules/@tencentcloud/tuiroom-engine-wx/TUIRoomEngine.wasm.br',
+      './node_modules/@tencentcloud/tuiroom-engine-wx/RTCRoomEngine.wasm.br',
       path.join(this.srcPath, wasmDest),
     );
 

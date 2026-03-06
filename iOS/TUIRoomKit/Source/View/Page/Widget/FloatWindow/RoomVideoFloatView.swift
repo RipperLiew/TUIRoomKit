@@ -2,13 +2,15 @@
 //  RoomVideoFloatView.swift
 //  TUIRoomKit
 //
-//  Created by 唐佳宁 on 2023/7/11.
-//  悬浮窗
+//  Created by janejntang on 2023/7/11.
 //
 
 import Foundation
+import Factory
 
 class RoomVideoFloatView: UIView {
+    @Injected(\.floatChatService) private var store: FloatChatStoreProvider
+    @Injected(\.conferenceStore) private var conferenceStore: ConferenceStore
     private var isDraging: Bool = false
     private let viewModel: RoomVideoFloatViewModel
     private let space: CGFloat = 10
@@ -47,7 +49,6 @@ class RoomVideoFloatView: UIView {
     }
     
     deinit {
-        NSObject.cancelPreviousPerformRequests(withTarget: self)
         debugPrint("deinit:\(self)")
     }
     
@@ -60,6 +61,7 @@ class RoomVideoFloatView: UIView {
         constructViewHierarchy()
         activateConstraints()
         bindInteraction()
+        reportViewShow()
         isViewReady = true
     }
     
@@ -109,15 +111,11 @@ class RoomVideoFloatView: UIView {
         let tap = UITapGestureRecognizer(target: self, action: #selector(didTap(sender:)))
         addGestureRecognizer(tap)
         viewModel.viewResponder = self
-        viewModel.showFloatWindowViewVideo(renderView: renderView)
-        setupViewState()
+        viewModel.showFloatWindowViewVideo()
     }
     
-    private func setupViewState() {
-        guard let userModel = viewModel.engineManager.store.attendeeList.first(where: { $0.userId == viewModel.userId }) else { return }
-        let placeholder = UIImage(named: "room_default_user", in: tuiRoomKitBundle(), compatibleWith: nil)
-        avatarImageView.sd_setImage(with: URL(string: userModel.avatarUrl), placeholderImage: placeholder)
-        userStatusView.updateUserVolume(hasAudio: userModel.hasAudioStream, volume: userModel.userVoiceVolume)
+    private func reportViewShow() {
+        viewModel.reportFloatWindowShow()
     }
     
     @objc func didTap(sender: UIView) {
@@ -126,7 +124,6 @@ class RoomVideoFloatView: UIView {
     
     @objc func didPan(panGesture: UIPanGestureRecognizer) {
         guard let viewSuperview = superview else { return }
-        // 移动状态
         let moveState = panGesture.state
         let viewCenter = center
         switch moveState {
@@ -138,7 +135,6 @@ class RoomVideoFloatView: UIView {
         case .ended:
             let point = panGesture.translation(in: viewSuperview)
             let newPoint = CGPoint(x: viewCenter.x + point.x, y: viewCenter.y + point.y)
-            // 自动吸边动画
             UIView.animate(withDuration: 0.2) {
                 self.center = self.adsorption(centerPoint: newPoint)
             }
@@ -146,7 +142,6 @@ class RoomVideoFloatView: UIView {
             break
         default: break
         }
-        // 重置 panGesture
         panGesture.setTranslation(.zero, in: viewSuperview)
     }
     
@@ -167,7 +162,8 @@ class RoomVideoFloatView: UIView {
     class func dismiss() {
         DispatchQueue.main.async {
             guard let currentWindow = RoomRouter.getCurrentWindow() else { return }
-            for view in currentWindow.subviews where view is RoomVideoFloatView {
+            let videoFloatViewArray = currentWindow.subviews.filter({ $0 is RoomVideoFloatView })
+            for view in videoFloatViewArray {
                 view.removeFromSuperview()
             }
         }
@@ -179,7 +175,6 @@ class RoomVideoFloatView: UIView {
         let frame = self.frame
         let point = CGPoint(x: centerPoint.x - frame.width / 2, y: centerPoint.y - frame.height / 2)
         var newPoint = point
-        // 吸边
         if centerPoint.x < (viewSuperview.frame.width / 2) {
             newPoint.x = limitMargin
         } else {
@@ -192,19 +187,13 @@ class RoomVideoFloatView: UIView {
         }
         return CGPoint(x: newPoint.x + frame.width / 2, y: newPoint.y + frame.height / 2)
     }
-    
-    private func resetVolume() {
-       NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(resetVolumeView), object: nil)
-       perform(#selector(resetVolumeView), with: nil, afterDelay: 1)
-   }
-   
-    @objc func resetVolumeView() {
-        guard let userItem = viewModel.getUserEntity(userId: viewModel.userId) else { return }
-        userStatusView.updateUserVolume(hasAudio: userItem.hasAudioStream, volume: 0)
-    }
 }
 
 extension RoomVideoFloatView: RoomVideoFloatViewResponder {
+    func getRenderView() -> UIView {
+        return renderView
+    }
+    
     func makeToast(text: String) {
         RoomRouter.makeToastInCenter(toast: text, duration: 0.5)
     }
@@ -215,9 +204,12 @@ extension RoomVideoFloatView: RoomVideoFloatViewResponder {
         userStatusView.updateUserStatus(userModel: user)
     }
     
-    func updateUserAudioVolume(hasAudio: Bool, volume: Int) {
-        userStatusView.updateUserVolume(hasAudio: hasAudio, volume: volume)
-        resetVolume()
+    func updateUserVolume(volume: Int) {
+        userStatusView.updateUserVolume(volume: volume)
+    }
+    
+    func updateUserAudio(hasAudio: Bool) {
+        userStatusView.updateUserAudio(hasAudio)
     }
     
     func showAvatarImageView(isShow: Bool) {

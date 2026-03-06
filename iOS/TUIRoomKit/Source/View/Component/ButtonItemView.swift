@@ -2,14 +2,16 @@
 //  ButtonItemView.swift
 //  TUIRoomKit
 //
-//  Created by 唐佳宁 on 2023/1/10.
+//  Created by janejntang on 2023/1/10.
 //  Copyright © 2023 Tencent. All rights reserved.
 //
 
 import Foundation
+import Combine
 
 class ButtonItemView: UIView {    
     var itemData: ButtonItemData
+    var cancellableSet = Set<AnyCancellable>()
     
     lazy var controlButton: UIButton = {
         let button = UIButton()
@@ -107,10 +109,14 @@ class ButtonItemView: UIView {
     
     func setupViewState(item: ButtonItemData) {
         itemData = item
-        controlButton.isSelected = item.isSelect
         controlButton.isEnabled = item.isEnabled
-        imageView.image = item.isSelect ? itemData.selectedImage : itemData.normalImage
-        label.text = item.isSelect ? itemData.selectedTitle : itemData.normalTitle
+        updateSelectState(item.isSelect)
+    }
+    
+    func updateSelectState(_ isSelect: Bool) {
+        controlButton.isSelected = isSelect
+        imageView.image = isSelect ? itemData.selectedImage : itemData.normalImage
+        label.text = isSelect ? itemData.selectedTitle : itemData.normalTitle
     }
     
     @objc func clickMenuButton(sender: UIButton) {

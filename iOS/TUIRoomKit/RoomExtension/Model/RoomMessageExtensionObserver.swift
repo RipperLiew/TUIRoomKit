@@ -2,7 +2,7 @@
 //  RoomMessageExtensionObserver.swift
 //  TUIRoomKit
 //
-//  Created by 唐佳宁 on 2023/6/2.
+//  Created by janejntang on 2023/6/2.
 //
 
 import Foundation
@@ -18,8 +18,8 @@ class RoomMessageExtensionObserver: NSObject {
     }
     @objc private func pushChatExtensionRoomSettingsViewController() {
         if let nav = settingMenuNavigationController {
-            let vc = ChatExtensionRoomSettingsViewController(isOpenMicrophone: EngineManager.createInstance().store.isOpenMicrophone,
-                                                 isOpenCamera: EngineManager.createInstance().store.isOpenCamera)
+            let vc = ChatExtensionRoomSettingsViewController(isOpenMicrophone: EngineManager.shared.store.isOpenMicrophone,
+                                                 isOpenCamera: EngineManager.shared.store.isOpenCamera)
             nav.pushViewController(vc, animated: true)
         }
     }
@@ -35,9 +35,8 @@ extension RoomMessageExtensionObserver: TUIExtensionProtocol {
             let info = TUIExtensionInfo()
             info.weight = 200
             info.text = .meetingText
-            if let image = UIImage(named: "room_quick_meeting", in: tuiRoomKitBundle(), compatibleWith: nil) {
-                info.icon = image
-            }
+            let defaultImage = UIImage(named: "room_quick_meeting", in: tuiRoomKitBundle(), compatibleWith: nil) ?? UIImage()
+            info.icon = TUICoreThemeConvert.getTUIDynamicImage(imageKey: "room_quick_meeting_image", defaultImage: defaultImage)
             info.onClicked = { [weak self] param in
                 guard let self = self else { return }
                 if let vc = param[TUICore_TUIChatExtension_InputViewMoreItem_PushVC] as? UINavigationController {
@@ -77,10 +76,10 @@ extension RoomMessageExtensionObserver: TUIExtensionProtocol {
 
 private extension String {
     static var meetingText: String {
-        localized("TUIRoom.quick.meeting")
+        localized("Quick conference")
     }
     static var roomDeviceSetText: String {
-        localized("TUIRoom.device.set")
+        localized("Meeting Settings")
     }
 }
 

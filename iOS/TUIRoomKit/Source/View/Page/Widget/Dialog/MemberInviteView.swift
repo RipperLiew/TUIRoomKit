@@ -2,13 +2,10 @@
 //  MemberInviteView.swift
 //  TUIRoomKit
 //
-//  Created by 于西巍 on 2023/8/21.
-//  邀请页面
+//  Created by krabyu on 2023/8/21.
 //
 
 import Foundation
-
-import TUIRoomEngine
 
 class MemberInviteView: UIView {
     let viewModel: MemberInviteViewModel
@@ -21,9 +18,9 @@ class MemberInviteView: UIView {
         return view
     }()
     
-    let titleLabel: UILabel = {
+    lazy var titleLabel: UILabel = {
         let label = UILabel()
-        label.text = .inviteMemberText
+        label.text = viewModel.title
         label.textColor = UIColor(0xD5E0F2)
         label.font = UIFont(name: "PingFangSC-Regular", size: 18)
         label.textAlignment = .left
@@ -35,9 +32,20 @@ class MemberInviteView: UIView {
         view.axis = .vertical
         view.alignment = .center
         view.distribution = .equalSpacing
-        view.spacing = 0
+        view.spacing = 3
         view.backgroundColor = UIColor(0x1B1E26)
         return view
+    }()
+    
+    let copyButton: UIButton = {
+        let button = UIButton()
+        button.setTitle(.copyRoomInformation, for: .normal)
+        button.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .regular)
+        button.setTitleColor(UIColor(0xB2BBD1), for: .normal)
+        button.titleLabel?.textAlignment = .center
+        button.backgroundColor = UIColor(0x4F586B).withAlphaComponent(0.3)
+        button.layer.cornerRadius = 6
+        return button
     }()
     
     init(viewModel: MemberInviteViewModel) {
@@ -55,6 +63,7 @@ class MemberInviteView: UIView {
         constructViewHierarchy()
         activateConstraints()
         bindInteraction()
+        reportViewShow()
         isViewReady = true
     }
     
@@ -67,11 +76,12 @@ class MemberInviteView: UIView {
         addSubview(stackView)
         addSubview(headView)
         headView.addSubview(titleLabel)
+        addSubview(copyButton)
     }
     
     func activateConstraints() {
         headView.snp.makeConstraints { make in
-            make.top.equalToSuperview().offset(35.scale375())
+            make.top.equalToSuperview().offset(20.scale375())
             make.leading.equalToSuperview().offset(16.scale375())
             make.trailing.equalToSuperview().offset(-16.scale375())
             make.height.equalTo(25.scale375())
@@ -86,7 +96,12 @@ class MemberInviteView: UIView {
             make.top.equalTo(headView.snp.bottom).offset(20.scale375())
             make.leading.equalToSuperview().offset(16.scale375())
             make.trailing.equalToSuperview().offset(-16.scale375())
-            make.height.equalTo(56.scale375())
+        }
+        copyButton.snp.makeConstraints { make in
+            make.leading.equalToSuperview().offset(16.scale375())
+            make.trailing.equalToSuperview().offset(-16.scale375())
+            make.height.equalTo(40.scale375Height())
+            make.top.equalTo(stackView.snp.bottom).offset(20.scale375Height())
         }
         
         for item in viewModel.messageItems {
@@ -94,7 +109,7 @@ class MemberInviteView: UIView {
             viewArray.append(view)
             stackView.addArrangedSubview(view)
             view.snp.makeConstraints { make in
-                make.height.equalTo(20.scale375())
+                make.height.equalTo(24.scale375Height())
                 make.width.equalToSuperview()
             }
         }
@@ -103,6 +118,16 @@ class MemberInviteView: UIView {
     func bindInteraction() {
         backgroundColor = UIColor(0x1B1E26)
         viewModel.viewResponder = self
+        copyButton.addTarget(self, action: #selector(copyAction(sender:)), for: .touchUpInside)
+    }
+    
+    private func reportViewShow() {
+        viewModel.reportMemberInvitePanelShow()
+    }
+    
+    @objc func copyAction(sender: UIButton) {
+        viewModel.copyAction()
+        makeToast(.roomInformationCopiedSuccessfully)
     }
     
     deinit {
@@ -111,20 +136,30 @@ class MemberInviteView: UIView {
 }
 
 extension MemberInviteView: MemberInviteResponder {
-    func showCopyToast(copyType: CopyType) {
-        RoomRouter.makeToastInCenter(toast: copyType == .copyRoomIdType ?
-            .copyRoomIdSuccess : .copyRoomLinkSuccess,duration: 0.5)
+    func showCopyToast(copyType: CopyType?) {
+        guard let copyType = copyType else { return }
+        var test: String
+        switch copyType {
+        case .copyRoomPassword:
+            test = .copyRoomPasswordSuccess
+        case .copyRoomIdType:
+            test = .copyRoomIdSuccess
+        case .copyRoomLinkType:
+            test = .copyRoomLinkSuccess
+        }
+        RoomRouter.makeToastInCenter(toast: test,duration: 0.5)
     }
 }
 
 private extension String {
     static var copyRoomIdSuccess: String {
-        localized("TUIRoom.copy.roomId.success")
+        localized("Conference ID copied.")
     }
     static var copyRoomLinkSuccess: String {
-        localized("TUIRoom.copy.roomLink.success")
+        localized("Conference Link copied.")
     }
-    static var inviteMemberText: String {
-        localized("TUIRoom.inviteMember")
-    }
+    static let conferencePasswordSuccess = localized("Conference password copied successfully.")
+    static let copyRoomInformation = localized("Copy room information")
+    static let roomInformationCopiedSuccessfully = localized("Room information copied successfully")
+    static let copyRoomPasswordSuccess = localized("Conference password copied")
 }

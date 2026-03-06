@@ -1,19 +1,12 @@
 package com.tencent.qcloud.tuikit.tuichat.classicui.widget.input;
 
-import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
-import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.Rect;
 import android.net.Uri;
-import android.os.Build;
-import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.AttributeSet;
-import android.util.DisplayMetrics;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -21,56 +14,57 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
-import android.webkit.MimeTypeMap;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
+import androidx.fragment.app.FragmentActivity;
 import androidx.fragment.app.FragmentManager;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.tencent.imsdk.v2.V2TIMManager;
 import com.tencent.qcloud.tuicore.TUIConstants;
 import com.tencent.qcloud.tuicore.TUICore;
-import com.tencent.qcloud.tuicore.TUILogin;
 import com.tencent.qcloud.tuicore.interfaces.TUIExtensionEventListener;
 import com.tencent.qcloud.tuicore.interfaces.TUIExtensionInfo;
 import com.tencent.qcloud.tuicore.interfaces.TUIValueCallback;
-import com.tencent.qcloud.tuicore.util.TUIBuild;
 import com.tencent.qcloud.tuicore.util.ToastUtil;
+import com.tencent.qcloud.tuikit.timcommon.bean.ChatFace;
 import com.tencent.qcloud.tuikit.timcommon.bean.TUIMessageBean;
-import com.tencent.qcloud.tuikit.timcommon.component.face.CustomFace;
-import com.tencent.qcloud.tuikit.timcommon.component.face.Emoji;
-import com.tencent.qcloud.tuikit.timcommon.component.face.FaceManager;
 import com.tencent.qcloud.tuikit.timcommon.interfaces.ChatInputMoreListener;
+import com.tencent.qcloud.tuikit.timcommon.interfaces.OnFaceInputListener;
 import com.tencent.qcloud.tuikit.timcommon.util.ActivityResultResolver;
+import com.tencent.qcloud.tuikit.timcommon.util.FaceUtil;
 import com.tencent.qcloud.tuikit.timcommon.util.FileUtil;
 import com.tencent.qcloud.tuikit.timcommon.util.ThreadUtils;
 import com.tencent.qcloud.tuikit.tuichat.R;
 import com.tencent.qcloud.tuikit.tuichat.TUIChatConstants;
 import com.tencent.qcloud.tuikit.tuichat.TUIChatService;
 import com.tencent.qcloud.tuikit.tuichat.bean.ChatInfo;
+import com.tencent.qcloud.tuikit.tuichat.bean.CustomHelloMessage;
 import com.tencent.qcloud.tuikit.tuichat.bean.DraftInfo;
-import com.tencent.qcloud.tuikit.tuichat.bean.InputMoreActionUnit;
+import com.tencent.qcloud.tuikit.tuichat.bean.InputMoreItem;
 import com.tencent.qcloud.tuikit.tuichat.bean.ReplyPreviewBean;
 import com.tencent.qcloud.tuikit.tuichat.bean.message.FileMessageBean;
 import com.tencent.qcloud.tuikit.tuichat.classicui.interfaces.IChatLayout;
-import com.tencent.qcloud.tuikit.tuichat.classicui.widget.ChatView;
-import com.tencent.qcloud.tuikit.tuichat.classicui.widget.input.face.FaceFragment;
 import com.tencent.qcloud.tuikit.tuichat.classicui.widget.input.inputmore.InputMoreFragment;
-import com.tencent.qcloud.tuikit.tuichat.component.AudioRecorder;
-import com.tencent.qcloud.tuikit.tuichat.component.camera.CameraActivity;
-import com.tencent.qcloud.tuikit.tuichat.config.TUIChatConfigs;
+import com.tencent.qcloud.tuikit.tuichat.component.album.AlbumPicker;
+import com.tencent.qcloud.tuikit.tuichat.component.album.VideoRecorder;
+import com.tencent.qcloud.tuikit.tuichat.component.audio.AudioRecorder;
+import com.tencent.qcloud.tuikit.tuichat.component.face.FaceFragment;
+import com.tencent.qcloud.tuikit.tuichat.component.inputedittext.TIMMentionEditText;
+import com.tencent.qcloud.tuikit.tuichat.config.GeneralConfig;
+import com.tencent.qcloud.tuikit.tuichat.config.classicui.TUIChatConfigClassic;
+import com.tencent.qcloud.tuikit.tuichat.interfaces.AlbumPickerListener;
+import com.tencent.qcloud.tuikit.tuichat.interfaces.IMultimediaRecorder;
 import com.tencent.qcloud.tuikit.tuichat.presenter.ChatPresenter;
 import com.tencent.qcloud.tuikit.tuichat.util.ChatMessageBuilder;
 import com.tencent.qcloud.tuikit.tuichat.util.ChatMessageParser;
-import com.tencent.qcloud.tuikit.tuichat.util.PermissionHelper;
 import com.tencent.qcloud.tuikit.tuichat.util.TUIChatLog;
 import com.tencent.qcloud.tuikit.tuichat.util.TUIChatUtils;
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -79,7 +73,6 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 聊天界面，底部发送图片、拍照、摄像、文件面板
  *
  * Chat interface, send pictures, take pictures, video, file panels at the bottom
  */
@@ -93,12 +86,7 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
     private static final int STATE_FACE_INPUT = 2;
     private static final int STATE_ACTION_INPUT = 3;
 
-    protected static final int FILE_MAX_SIZE = 100 * 1024 * 1024;
-    protected static final int VIDEO_MAX_SIZE = 100 * 1024 * 1024;
-    protected static final int IMAGE_MAX_SIZE = 28 * 1024 * 1024;
-
     /**
-     * 语音/文字切换输入控件
      *
      * Voice/text switch input controls
      */
@@ -106,7 +94,6 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
     protected boolean mAudioInputDisable;
 
     /**
-     * 表情按钮
      *
      * emoji button
      */
@@ -114,7 +101,6 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
     protected boolean mEmojiInputDisable;
 
     /**
-     * 更多按钮
      *
      * more button
      */
@@ -123,38 +109,28 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
     protected boolean mMoreInputDisable;
 
     /**
-     * 消息发送按钮
      *
      * message send button
      */
     protected TextView mSendTextButton;
 
     /**
-     * 语音长按按钮
      *
      * voice send button
      */
     protected Button mSendAudioButton;
 
     /**
-     * 文本输入框
      *
      * input text
      */
     protected TIMMentionEditText mTextInput;
     private boolean mIsSending = false;
 
-    protected AppCompatActivity mActivity;
-    protected View mInputMoreLayout;
-    //    protected ShortcutArea mShortcutArea;
+    protected FragmentActivity mActivity;
     protected View mInputMoreView;
     protected ChatInfo mChatInfo;
-    protected List<InputMoreActionUnit> mInputMoreActionList = new ArrayList<>();
-    protected List<InputMoreActionUnit> mInputMoreCustomActionList = new ArrayList<>();
-    private boolean mSendPhotoDisable;
-    private boolean mCaptureDisable;
-    private boolean mVideoRecordDisable;
-    private boolean mSendFileDisable;
+    protected List<InputMoreItem> mInputMoreActionList = new ArrayList<>();
 
     private FaceFragment mFaceFragment;
     private ChatInputHandler mChatInputHandler;
@@ -163,7 +139,6 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
     private InputMoreFragment mInputMoreFragment;
     private IChatLayout mChatLayout;
     private boolean mSendEnable;
-    private boolean mAudioCancel;
     private int mCurrentState;
     private int mLastMsgLineCount;
     private float mStartRecordY;
@@ -186,6 +161,9 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
     private ImageView quoteCloseBtn;
     private boolean isShowCustomFace = true;
     private ChatInputMoreListener chatInputMoreListener;
+    private IMultimediaRecorder defaultVideoRecorder;
+    private IMultimediaRecorder extVideoRecorder;
+    private AudioRecorder defaultAudioRecorder;
 
     public InputView(Context context) {
         super(context);
@@ -207,9 +185,8 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
     }
 
     private void initViews() {
-        mActivity = (AppCompatActivity) getContext();
+        mActivity = (FragmentActivity) getContext();
         inflate(mActivity, R.layout.chat_input_layout, this);
-        //        mShortcutArea = findViewById(R.id.shortcut_area);
         mInputMoreView = findViewById(R.id.more_groups);
         mSendAudioButton = findViewById(R.id.chat_voice_input);
         mAudioInputSwitchButton = findViewById(R.id.voice_input_switch);
@@ -245,7 +222,6 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
         init();
     }
 
-    @SuppressLint("ClickableViewAccessibility")
     protected void init() {
         mAudioInputSwitchButton.setOnClickListener(this);
         mEmojiInputButton.setOnClickListener(this);
@@ -294,69 +270,38 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
         });
 
         mSendAudioButton.setOnTouchListener(new OnTouchListener() {
+            private boolean readyToCancel = false;
+
             @Override
             public boolean onTouch(View view, MotionEvent motionEvent) {
-                if (TUILogin.getCurrentBusinessScene() != TUILogin.TUIBusinessScene.NONE) {
-                    TUIChatLog.w(TAG, "Microphone is being used by another function, unable to record.");
-                    ToastUtil.toastLongMessage(TUIChatService.getAppContext().getString(R.string.chat_mic_is_being_used_cant_record));
-                    return true;
-                }
-                PermissionHelper.requestPermission(PermissionHelper.PERMISSION_MICROPHONE, new PermissionHelper.PermissionCallback() {
-                    @Override
-                    public void onGranted() {
-                        switch (motionEvent.getAction()) {
-                            case MotionEvent.ACTION_DOWN:
-                                mAudioCancel = true;
-                                mStartRecordY = motionEvent.getY();
-                                if (mChatInputHandler != null) {
-                                    mChatInputHandler.onRecordStatusChanged(ChatInputHandler.RECORD_START);
-                                }
-                                mSendAudioButton.setText(TUIChatService.getAppContext().getString(R.string.release_end));
-                                AudioRecorder.getInstance().startRecord(new AudioRecorder.Callback() {
-                                    @Override
-                                    public void onCompletion(Boolean success) {
-                                        recordComplete(success);
-                                    }
-
-                                    @Override
-                                    public void onVoiceDb(double db) {}
-                                });
-                                break;
-                            case MotionEvent.ACTION_MOVE:
-                                if (motionEvent.getY() - mStartRecordY < -100) {
-                                    mAudioCancel = true;
-                                    if (mChatInputHandler != null) {
-                                        mChatInputHandler.onRecordStatusChanged(ChatInputHandler.RECORD_CANCEL);
-                                    }
-                                } else {
-                                    if (mAudioCancel) {
-                                        if (mChatInputHandler != null) {
-                                            mChatInputHandler.onRecordStatusChanged(ChatInputHandler.RECORD_CONTINUE);
-                                        }
-                                    }
-                                    mAudioCancel = false;
-                                }
-                                mSendAudioButton.setText(TUIChatService.getAppContext().getString(R.string.release_end));
-                                break;
-                            case MotionEvent.ACTION_CANCEL:
-                            case MotionEvent.ACTION_UP:
-                                mAudioCancel = motionEvent.getY() - mStartRecordY < -100;
-                                if (mChatInputHandler != null) {
-                                    mChatInputHandler.onRecordStatusChanged(ChatInputHandler.RECORD_STOP);
-                                }
-                                AudioRecorder.getInstance().stopRecord();
-                                mSendAudioButton.setText(TUIChatService.getAppContext().getString(R.string.hold_say));
-                                break;
-                            default:
-                                break;
+                switch (motionEvent.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        mStartRecordY = motionEvent.getY();
+                        startRecordAudio();
+                        break;
+                    case MotionEvent.ACTION_MOVE:
+                        if (motionEvent.getY() - mStartRecordY < -100) {
+                            readyToCancel = true;
+                            readyToCancelRecordAudio();
+                        } else {
+                            if (readyToCancel) {
+                                continueRecordAudio();
+                            }
+                            readyToCancel = false;
                         }
-                    }
+                        break;
+                    case MotionEvent.ACTION_CANCEL:
+                    case MotionEvent.ACTION_UP:
+                        if (readyToCancel) {
+                            cancelRecordAudio();
+                        } else {
+                            stopRecordAudio();
+                        }
+                        break;
+                    default:
+                        break;
+                }
 
-                    @Override
-                    public void onDenied() {
-                        TUIChatLog.i(TAG, "audio record checkPermission failed");
-                    }
-                });
                 return false;
             }
         });
@@ -409,11 +354,85 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
             if (selectedIndex != -1) {
                 String insertStr = TIMMentionEditText.TIM_MENTION_TAG + displayInputString;
                 String text = mTextInput.getText().insert(selectedIndex, insertStr).toString();
-                FaceManager.handlerEmojiText(mTextInput, text, true);
+                FaceUtil.handlerEmojiText(mTextInput, text, true);
                 mTextInput.setSelection(selectedIndex + insertStr.length());
             }
             showSoftInput();
         }
+    }
+
+    private void startRecordAudio() {
+        AudioRecorder.startRecord(new AudioRecorder.AudioRecorderCallback() {
+            @Override
+            public void onStarted() {
+                if (mChatInputHandler != null) {
+                    mChatInputHandler.onRecordStatusChanged(ChatInputHandler.RECORD_START);
+                }
+                mSendAudioButton.setText(TUIChatService.getAppContext().getString(R.string.release_end));
+            }
+
+            @Override
+            public void onFailed(int errorCode, String errorMessage) {
+                if (errorCode == AudioRecorder.ERROR_CODE_MIC_IS_BEING_USED || errorCode == TUIConstants.TUICalling.ERROR_STATUS_IN_CALL) {
+                    ToastUtil.toastLongMessage(TUIChatService.getAppContext().getString(R.string.chat_mic_is_being_used_cant_record));
+                } else {
+                    ToastUtil.toastLongMessage(TUIChatService.getAppContext().getString(R.string.chat_record_audio_failed));
+                }
+                TUIChatLog.e(TAG, "record audio failed, errorCode " + errorCode + ", errorMessage " + errorMessage);
+                if (mChatInputHandler != null) {
+                    mChatInputHandler.onRecordStatusChanged(ChatInputHandler.RECORD_FAILED);
+                }
+                mSendAudioButton.setText(TUIChatService.getAppContext().getString(R.string.hold_say));
+            }
+
+            @Override
+            public void onFinished(String outputPath) {
+                int duration = AudioRecorder.getDuration(outputPath);
+                mSendAudioButton.setText(TUIChatService.getAppContext().getString(R.string.hold_say));
+                if (duration < 1000) {
+                    mChatInputHandler.onRecordStatusChanged(ChatInputHandler.RECORD_TOO_SHORT);
+                    return;
+                }
+                if (mChatInputHandler != null) {
+                    mChatInputHandler.onRecordStatusChanged(ChatInputHandler.RECORD_STOP);
+                }
+                sendAudioMessage(outputPath, duration);
+            }
+
+            @Override
+            public void onCanceled() {
+                if (mChatInputHandler != null) {
+                    mChatInputHandler.onRecordStatusChanged(ChatInputHandler.RECORD_CANCEL);
+                }
+                mSendAudioButton.setText(TUIChatService.getAppContext().getString(R.string.hold_say));
+            }
+        });
+    }
+
+    private void sendAudioMessage(String outputPath, int duration) {
+        if (mMessageHandler != null) {
+            mMessageHandler.sendMessage(ChatMessageBuilder.buildAudioMessage(outputPath, duration));
+        }
+    }
+
+    private void readyToCancelRecordAudio() {
+        if (mChatInputHandler != null) {
+            mChatInputHandler.onRecordStatusChanged(ChatInputHandler.RECORD_READY_TO_CANCEL);
+        }
+    }
+
+    private void continueRecordAudio() {
+        if (mChatInputHandler != null) {
+            mChatInputHandler.onRecordStatusChanged(ChatInputHandler.RECORD_CONTINUE);
+        }
+    }
+
+    private void cancelRecordAudio() {
+        AudioRecorder.cancelRecord();
+    }
+
+    private void stopRecordAudio() {
+        AudioRecorder.stopRecord();
     }
 
     public void updateInputText(ArrayList<String> names, ArrayList<String> ids) {
@@ -429,10 +448,10 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
             int selectedIndex = mTextInput.getSelectionEnd();
             if (selectedIndex != -1) {
                 String text = mTextInput.getText().insert(selectedIndex, displayInputString).toString();
-                FaceManager.handlerEmojiText(mTextInput, text, true);
+                FaceUtil.handlerEmojiText(mTextInput, text, true);
                 mTextInput.setSelection(selectedIndex + displayInputString.length());
             }
-            // @ 之后要显示软键盘。Activity 没有 onResume 导致无法显示软键盘
+
             // Afterwards @, the soft keyboard is to be displayed. Activity does not have onResume, so the soft keyboard cannot be displayed
             ThreadUtils.postOnUiThreadDelayed(new Runnable() {
                 @Override
@@ -514,259 +533,69 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
 
     protected void startSendPhoto() {
         TUIChatLog.i(TAG, "startSendPhoto");
-        ActivityResultResolver.getMultipleContent(mInputMoreFragment.getActivity(),
-            new String[] {ActivityResultResolver.CONTENT_TYPE_IMAGE, ActivityResultResolver.CONTENT_TYPE_VIDEO}, new TUIValueCallback<List<Uri>>() {
-                @Override
-                public void onSuccess(List<Uri> uris) {
-                    ThreadUtils.runOnUiThread(() -> sendPhotoVideoMessage(uris));
-                }
-
-                @Override
-                public void onError(int errorCode, String errorMessage) {}
-            });
-    }
-
-    private void sendPhotoVideoMessage(List<Uri> uris) {
-        List<TUIMessageBean> messageBeans = new ArrayList<>();
-        for (Uri data : uris) {
-            TUIChatLog.i(TAG, "onSuccess: " + data);
-            if (data == null) {
-                TUIChatLog.e(TAG, "data is null");
-                continue;
-            }
-
-            String uri = data.toString();
-            if (TextUtils.isEmpty(uri)) {
-                TUIChatLog.e(TAG, "uri is empty");
-                continue;
-            }
-            String filePath = FileUtil.getPathFromUri(data);
-            String fileName = FileUtil.getName(filePath);
-            String fileExtension = FileUtil.getFileExtensionFromUrl(fileName);
-            String mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension);
-            if (TextUtils.isEmpty(mimeType)) {
-                TUIChatLog.e(TAG, "mimeType is empty.");
-                continue;
-            }
-            if (mimeType.contains("video")) {
-                if (FileUtil.isFileSizeExceedsLimit(data, VIDEO_MAX_SIZE)) {
-                    ToastUtil.toastShortMessage(getResources().getString(com.tencent.qcloud.tuicore.R.string.TUIKitErrorFileTooLarge));
-                    continue;
-                }
-                TUIMessageBean msg = buildVideoMessage(filePath);
-                if (msg == null) {
-                    ToastUtil.toastShortMessage(getResources().getString(R.string.send_failed_file_not_exists));
-                    TUIChatLog.e(TAG, "start send video error data: " + data);
-                } else {
-                    messageBeans.add(msg);
-                }
-            } else if (mimeType.contains("image")) {
-                if (FileUtil.isFileSizeExceedsLimit(data, IMAGE_MAX_SIZE)) {
-                    ToastUtil.toastShortMessage(getResources().getString(com.tencent.qcloud.tuicore.R.string.TUIKitErrorFileTooLarge));
-                    continue;
-                }
-                TUIMessageBean msg = ChatMessageBuilder.buildImageMessage(filePath);
-                if (msg == null) {
-                    TUIChatLog.e(TAG, "start send image error data: " + data);
-                    ToastUtil.toastShortMessage(getResources().getString(R.string.send_failed_file_not_exists));
-                } else {
-                    messageBeans.add(msg);
-                }
-            } else {
-                TUIChatLog.e(TAG, "Send photo or video failed , invalid mimeType : " + mimeType);
-            }
-        }
-        if (mMessageHandler != null) {
-            mMessageHandler.sendMessages(messageBeans);
-            hideSoftInput();
-        }
-    }
-
-    private TUIMessageBean buildVideoMessage(String videoPath) {
-        android.media.MediaMetadataRetriever mmr = new android.media.MediaMetadataRetriever();
-        try {
-            mmr.setDataSource(videoPath);
-            String sDuration = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION);
-            Bitmap bitmap = mmr.getFrameAtTime(0, android.media.MediaMetadataRetriever.OPTION_NEXT_SYNC);
-
-            if (bitmap == null) {
-                TUIChatLog.e(TAG, "buildVideoMessage() bitmap is null");
-                return null;
-            }
-
-            String bitmapPath = FileUtil.generateImageFilePath();
-            boolean result = FileUtil.saveBitmap(bitmapPath, bitmap);
-            if (!result) {
-                TUIChatLog.e(TAG, "build video message, save bitmap failed.");
-                return null;
-            }
-            int imgWidth = bitmap.getWidth();
-            int imgHeight = bitmap.getHeight();
-            long duration = Long.parseLong(sDuration);
-
-            return ChatMessageBuilder.buildVideoMessage(bitmapPath, videoPath, imgWidth, imgHeight, duration);
-        } catch (Exception ex) {
-            TUIChatLog.e(TAG, "MediaMetadataRetriever exception " + ex);
-        } finally {
-            mmr.release();
-        }
-
-        return null;
-    }
-
-    protected void startCaptureCheckPermission() {
-        TUIChatLog.i(TAG, "startCaptureCheckPermission");
-
-        PermissionHelper.requestPermission(PermissionHelper.PERMISSION_CAMERA, new PermissionHelper.PermissionCallback() {
+        AlbumPicker.pickMedia(mInputMoreFragment.getActivity(), new AlbumPickerListener() {
             @Override
-            public void onGranted() {
-                startCapture();
+            public void onFinished(Uri originalUri, Uri transcodeUri) {
+                sendPhotoVideoMessage(originalUri, transcodeUri);
             }
 
             @Override
-            public void onDenied() {
-                TUIChatLog.i(TAG, "startCapture checkPermission failed");
+            public void onProgress(Uri originalUri, int progress)  {
+                presenter.updateMessageProgress(originalUri, progress);
+            }
+
+            @Override
+            public void onOriginalMediaPicked(Uri originalUri) {
+                presenter.addPlaceholderMessage(originalUri);
+                hideSoftInput();
+            }
+
+            @Override
+            public void onCancel() {
+
             }
         });
     }
 
-    private void startCapture() {
-        if (TUIChatConfigs.getConfigs().getGeneralConfig().isUseSystemCamera()) {
-            if (TUIBuild.getVersionInt() < Build.VERSION_CODES.N) {
-                PermissionHelper.requestPermission(PermissionHelper.PERMISSION_STORAGE, new PermissionHelper.PermissionCallback() {
-                    @Override
-                    public void onGranted() {
-                        String path = FileUtil.generateExternalStorageImageFilePath();
-                        systemCaptureAndSend(path);
-                    }
-
-                    @Override
-                    public void onDenied() {
-                        TUIChatLog.i(TAG, "startCapture checkPermission failed");
-                    }
-                });
-            } else {
-                String path = FileUtil.generateImageFilePath();
-                systemCaptureAndSend(path);
-            }
-        } else {
-            chatCaptureAndSend();
-        }
+    private void sendPhotoVideoMessage(Uri uri) {
+        presenter.sendPhotoVideoMessages(uri, null);
+        hideSoftInput();
     }
 
-    private void chatCaptureAndSend() {
-        Bundle bundle = new Bundle();
-        bundle.putInt(TUIChatConstants.CAMERA_TYPE, CameraActivity.BUTTON_STATE_ONLY_CAPTURE);
-        TUICore.startActivityForResult(mInputMoreFragment, CameraActivity.class, bundle, result -> {
-            if (result.getData() != null) {
-                Uri uri = result.getData().getData();
-                if (uri != null) {
-                    sendPhotoVideoMessage(Collections.singletonList(uri));
-                }
+    private void sendPhotoVideoMessage(Uri original, Uri transcodeUri) {
+        presenter.sendPhotoVideoMessages(original, transcodeUri);
+        ThreadUtils.runOnUiThread(this::hideSoftInput);
+    }
+
+    protected void takePhoto() {
+        TUIChatLog.i(TAG, "takePhoto");
+
+        VideoRecorder.openCamera(mInputMoreFragment, new TUIValueCallback<Uri>() {
+
+            @Override
+            public void onSuccess(Uri uri) {
+                sendPhotoVideoMessage(uri);
+            }
+
+            @Override
+            public void onError(int errorCode, String errorMessage) {
+                TUIChatLog.e(TAG, "takePhoto errorCode: " + errorCode + " errorMessage: " + errorMessage);
             }
         });
     }
 
-    private void systemCaptureAndSend(String path) {
-        Uri uri = FileUtil.getUriFromPath(path);
-        if (uri == null) {
-            return;
-        }
-        ActivityResultResolver.takePicture(mInputMoreFragment, uri, new TUIValueCallback<Boolean>() {
+    protected void recordVideo() {
+        TUIChatLog.i(TAG, "openVideoRecord");
+
+        VideoRecorder.openVideoRecorder(mInputMoreFragment, new TUIValueCallback<Uri>() {
             @Override
-            public void onSuccess(Boolean object) {
-                File imageFile = new File(path);
-                if (imageFile.exists()) {
-                    sendPhotoVideoMessage(Collections.singletonList(uri));
-                }
+            public void onSuccess(Uri uri) {
+                sendPhotoVideoMessage(uri);
             }
 
             @Override
-            public void onError(int errorCode, String errorMessage) {}
-        });
-    }
-
-    protected void startVideoRecordCheckPermission() {
-        TUIChatLog.i(TAG, "startVideoRecordCheckPermission");
-
-        PermissionHelper.requestPermission(PermissionHelper.PERMISSION_CAMERA, new PermissionHelper.PermissionCallback() {
-            @Override
-            public void onGranted() {
-                PermissionHelper.requestPermission(PermissionHelper.PERMISSION_MICROPHONE, new PermissionHelper.PermissionCallback() {
-                    @Override
-                    public void onGranted() {
-                        startVideoRecord();
-                    }
-
-                    @Override
-                    public void onDenied() {
-                        TUIChatLog.i(TAG, "startVideoRecord checkPermission failed");
-                    }
-                });
-            }
-
-            @Override
-            public void onDenied() {
-                TUIChatLog.i(TAG, "startVideoRecord checkPermission failed");
-            }
-        });
-    }
-
-    private void startVideoRecord() {
-        if (TUIChatConfigs.getConfigs().getGeneralConfig().isUseSystemCamera()) {
-            if (TUIBuild.getVersionInt() < Build.VERSION_CODES.N) {
-                PermissionHelper.requestPermission(PermissionHelper.PERMISSION_STORAGE, new PermissionHelper.PermissionCallback() {
-                    @Override
-                    public void onGranted() {
-                        String path = FileUtil.generateExternalStorageVideoFilePath();
-                        systemRecordAndSend(path);
-                    }
-
-                    @Override
-                    public void onDenied() {
-                        TUIChatLog.i(TAG, "startVideoRecord checkPermission failed");
-                    }
-                });
-            } else {
-                String path = FileUtil.generateVideoFilePath();
-                systemRecordAndSend(path);
-            }
-        } else {
-            chatRecordAndSend();
-        }
-    }
-
-    private void systemRecordAndSend(String path) {
-        Uri uri = FileUtil.getUriFromPath(path);
-        if (uri == null) {
-            return;
-        }
-        ActivityResultResolver.takeVideo(mInputMoreFragment, uri, new TUIValueCallback<Boolean>() {
-            @Override
-            public void onSuccess(Boolean object) {
-                File videoFile = new File(path);
-                if (videoFile.exists()) {
-                    sendPhotoVideoMessage(Collections.singletonList(uri));
-                }
-            }
-
-            @Override
-            public void onError(int errorCode, String errorMessage) {}
-        });
-    }
-
-    private void chatRecordAndSend() {
-        Bundle bundle = new Bundle();
-        bundle.putInt(TUIChatConstants.CAMERA_TYPE, CameraActivity.BUTTON_STATE_ONLY_RECORDER);
-
-        TUICore.startActivityForResult(mInputMoreFragment, CameraActivity.class, bundle, result -> {
-            Intent data = result.getData();
-            if (data == null) {
-                return;
-            }
-            Uri uri = data.getData();
-            if (uri != null) {
-                sendPhotoVideoMessage(Collections.singletonList(uri));
+            public void onError(int errorCode, String errorMessage) {
+                TUIChatLog.i(TAG, "openVideoRecord errorCode: " + errorCode + " errorMessage: " + errorMessage);
             }
         });
     }
@@ -779,7 +608,7 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
                 if (data == null) {
                     return;
                 }
-                if (FileUtil.isFileSizeExceedsLimit(data, FILE_MAX_SIZE)) {
+                if (FileUtil.isFileSizeExceedsLimit(data, GeneralConfig.FILE_MAX_SIZE)) {
                     ToastUtil.toastShortMessage(getResources().getString(com.tencent.qcloud.tuicore.R.string.TUIKitErrorFileTooLarge));
                     return;
                 }
@@ -879,49 +708,50 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
                 }
             }
         } else if (view.getId() == R.id.send_btn) {
-            if (mSendEnable) {
-                if (mMessageHandler != null) {
-                    if (mChatLayout == null) {
-                        mMessageHandler.sendMessage(ChatMessageBuilder.buildTextMessage(mTextInput.getText().toString()));
-                    } else {
-                        if ((isQuoteModel || isReplyModel) && replyPreviewBean != null) {
-                            if (TUIChatUtils.isGroupChat(mChatLayout.getChatInfo().getType()) && !mTextInput.getMentionIdList().isEmpty()) {
-                                List<String> atUserList = new ArrayList<>(mTextInput.getMentionIdList());
-                                mMessageHandler.sendMessage(
-                                    ChatMessageBuilder.buildAtReplyMessage(mTextInput.getText().toString(), atUserList, replyPreviewBean));
-                            } else {
-                                mMessageHandler.sendMessage(ChatMessageBuilder.buildReplyMessage(mTextInput.getText().toString(), replyPreviewBean));
-                            }
-                            exitReply();
+            sendTextMessage();
+        }
+    }
+
+    private void sendTextMessage() {
+        if (mSendEnable) {
+            if (mMessageHandler != null) {
+                if (mChatLayout == null) {
+                    mMessageHandler.sendMessage(ChatMessageBuilder.buildTextMessage(mTextInput.getText().toString()));
+                } else {
+                    if ((isQuoteModel || isReplyModel) && replyPreviewBean != null) {
+                        if (TUIChatUtils.isGroupChat(mChatLayout.getChatInfo().getType()) && !mTextInput.getMentionIdList().isEmpty()) {
+                            List<String> atUserList = new ArrayList<>(mTextInput.getMentionIdList());
+                            mMessageHandler.sendMessage(ChatMessageBuilder.buildAtReplyMessage(mTextInput.getText().toString(), atUserList, replyPreviewBean));
                         } else {
-                            if (TUIChatUtils.isGroupChat(mChatLayout.getChatInfo().getType()) && !mTextInput.getMentionIdList().isEmpty()) {
-                                // 发送时通过获取输入框匹配上@的昵称list，去从map中获取ID list。
-                                //  When sending, get the ID list from the map by getting the nickname list that matches the @ in the input box.
-                                List<String> atUserList = new ArrayList<>(mTextInput.getMentionIdList());
-                                if (atUserList.isEmpty()) {
-                                    mMessageHandler.sendMessage(ChatMessageBuilder.buildTextMessage(mTextInput.getText().toString()));
-                                } else {
-                                    mMessageHandler.sendMessage(ChatMessageBuilder.buildTextAtMessage(atUserList, mTextInput.getText().toString()));
-                                }
-                            } else {
+                            mMessageHandler.sendMessage(ChatMessageBuilder.buildReplyMessage(mTextInput.getText().toString(), replyPreviewBean));
+                        }
+                        exitReply();
+                    } else {
+                        if (TUIChatUtils.isGroupChat(mChatLayout.getChatInfo().getType()) && !mTextInput.getMentionIdList().isEmpty()) {
+                            //  When sending, get the ID list from the map by getting the nickname list that matches the @ in the input box.
+                            List<String> atUserList = new ArrayList<>(mTextInput.getMentionIdList());
+                            if (atUserList.isEmpty()) {
                                 mMessageHandler.sendMessage(ChatMessageBuilder.buildTextMessage(mTextInput.getText().toString()));
+                            } else {
+                                mMessageHandler.sendMessage(ChatMessageBuilder.buildTextAtMessage(atUserList, mTextInput.getText().toString()));
                             }
+                        } else {
+                            mMessageHandler.sendMessage(ChatMessageBuilder.buildTextMessage(mTextInput.getText().toString()));
                         }
                     }
                 }
-                mIsSending = true;
-                mTextInput.setText("");
             }
+            mIsSending = true;
+            mTextInput.setText("");
         }
     }
 
     public void showSoftInput() {
         TUIChatLog.i(TAG, "showSoftInput");
         mCurrentState = STATE_SOFT_INPUT;
+        mTextInput.requestFocus();
         InputMethodManager imm = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-        if (!isSoftInputShown()) {
-            imm.toggleSoftInput(0, 0);
-        }
+        imm.showSoftInput(mTextInput, 0);
         ThreadUtils.postOnUiThreadDelayed(new Runnable() {
             @Override
             public void run() {
@@ -930,7 +760,6 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
                 mEmojiInputButton.setImageResource(R.drawable.chat_input_face);
                 mSendAudioButton.setVisibility(GONE);
                 mTextInput.setVisibility(VISIBLE);
-                mTextInput.requestFocus();
                 Context context = getContext();
                 if (context instanceof Activity) {
                     Window window = ((Activity) context).getWindow();
@@ -938,24 +767,24 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
                         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
                     }
                 }
-            }
-        }, 200);
 
-        if (mChatInputHandler != null) {
-            postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    mChatInputHandler.onInputAreaClick();
-                }
-            }, 200);
-        }
+                postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (mChatInputHandler != null) {
+                            mChatInputHandler.onInputAreaClick();
+                        }
+                    }
+                }, 100);
+            }
+        }, 180);
     }
 
     public void hideSoftInput() {
         TUIChatLog.i(TAG, "hideSoftInput");
+        mTextInput.clearFocus();
         InputMethodManager imm = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
         imm.hideSoftInputFromWindow(mTextInput.getWindowToken(), 0);
-        mTextInput.clearFocus();
         Context context = getContext();
         if (context instanceof Activity) {
             Window window = ((Activity) context).getWindow();
@@ -975,28 +804,6 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
         mTextInput.setVisibility(VISIBLE);
     }
 
-    private boolean isSoftInputShown() {
-        View decorView = ((Activity) getContext()).getWindow().getDecorView();
-        int screenHeight = decorView.getHeight();
-        Rect rect = new Rect();
-        decorView.getWindowVisibleDisplayFrame(rect);
-        return screenHeight - rect.bottom - getNavigateBarHeight() >= 0;
-    }
-
-    private int getNavigateBarHeight() {
-        DisplayMetrics metrics = new DisplayMetrics();
-        WindowManager windowManager = (WindowManager) getContext().getSystemService(Context.WINDOW_SERVICE);
-        windowManager.getDefaultDisplay().getMetrics(metrics);
-        int usableHeight = metrics.heightPixels;
-        windowManager.getDefaultDisplay().getRealMetrics(metrics);
-        int realHeight = metrics.heightPixels;
-        if (realHeight > usableHeight) {
-            return realHeight - usableHeight;
-        } else {
-            return 0;
-        }
-    }
-
     public void disableShowCustomFace(boolean disable) {
         isShowCustomFace = !disable;
     }
@@ -1013,43 +820,30 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
         mInputMoreView.setVisibility(View.VISIBLE);
         mTextInput.requestFocus();
         mFaceFragment.setShowCustomFace(isShowCustomFace);
-        mFaceFragment.setListener(new FaceFragment.OnEmojiClickListener() {
+        mFaceFragment.setBackgroundColor(getResources().getColor(R.color.tuichat_face_view_bg));
+        mFaceFragment.setListener(new OnFaceInputListener() {
             @Override
-            public void onEmojiDelete() {
-                int index = mTextInput.getSelectionStart();
-                Editable editable = mTextInput.getText();
-                boolean isFace = false;
-                if (index <= 0) {
-                    return;
-                }
-                if (editable.charAt(index - 1) == ']') {
-                    for (int i = index - 2; i >= 0; i--) {
-                        if (editable.charAt(i) == '[') {
-                            String faceChar = editable.subSequence(i, index).toString();
-                            if (FaceManager.isFaceChar(faceChar)) {
-                                editable.delete(i, index);
-                                isFace = true;
-                            }
-                            break;
-                        }
-                    }
-                }
-                if (!isFace) {
-                    editable.delete(index - 1, index);
-                }
+            public void onDeleteClicked() {
+                mTextInput.getInputConnection().sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL));
             }
 
             @Override
-            public void onEmojiClick(Emoji emoji) {
+            public void onEmojiClicked(String emojiKey) {
                 int index = mTextInput.getSelectionStart();
                 Editable editable = mTextInput.getText();
-                editable.insert(index, emoji.getFaceKey());
-                FaceManager.handlerEmojiText(mTextInput, editable, true);
+                editable.insert(index, emojiKey);
+                FaceUtil.handlerEmojiText(mTextInput, editable, true);
             }
 
             @Override
-            public void onCustomFaceClick(int groupIndex, CustomFace customFace) {
-                mMessageHandler.sendMessage(ChatMessageBuilder.buildFaceMessage(groupIndex, customFace.getFaceKey()));
+            public void onSendClicked() {
+                sendTextMessage();
+            }
+
+            @Override
+            public void onFaceClicked(ChatFace face) {
+                TUIMessageBean messageBean = ChatMessageBuilder.buildFaceMessage(face.getFaceGroup().getGroupID(), face.getFaceKey());
+                mMessageHandler.sendMessage(messageBean);
             }
         });
         mFragmentManager.beginTransaction().replace(R.id.more_groups, mFaceFragment).commitAllowingStateLoss();
@@ -1110,30 +904,6 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
         mInputMoreView.setVisibility(View.GONE);
     }
 
-    private void recordComplete(boolean success) {
-        int duration = AudioRecorder.getInstance().getDuration();
-        TUIChatLog.i(TAG, "recordComplete duration:" + duration);
-        if (mChatInputHandler != null) {
-            if (!success || duration == 0) {
-                mChatInputHandler.onRecordStatusChanged(ChatInputHandler.RECORD_FAILED);
-                return;
-            }
-            if (mAudioCancel) {
-                mChatInputHandler.onRecordStatusChanged(ChatInputHandler.RECORD_CANCEL);
-                return;
-            }
-            if (duration < 1000) {
-                mChatInputHandler.onRecordStatusChanged(ChatInputHandler.RECORD_TOO_SHORT);
-                return;
-            }
-            mChatInputHandler.onRecordStatusChanged(ChatInputHandler.RECORD_STOP);
-        }
-
-        if (mMessageHandler != null && success) {
-            mMessageHandler.sendMessage(ChatMessageBuilder.buildAudioMessage(AudioRecorder.getInstance().getPath(), duration));
-        }
-    }
-
     @Override
     public void beforeTextChanged(CharSequence s, int start, int count, int after) {
         mInputContent = s.toString();
@@ -1163,7 +933,7 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
                 }
             }
             if (!TextUtils.equals(mInputContent, mTextInput.getText().toString())) {
-                FaceManager.handlerEmojiText(mTextInput, mTextInput.getText(), true);
+                FaceUtil.handlerEmojiText(mTextInput, mTextInput.getText(), true);
             }
         }
 
@@ -1248,9 +1018,19 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
 
     protected void assembleActions() {
         mInputMoreActionList.clear();
-        InputMoreActionUnit actionUnit;
-        if (!mSendPhotoDisable) {
-            actionUnit = new InputMoreActionUnit() {
+
+        List<Integer> excludeItems = new ArrayList<>();
+        TUIChatConfigClassic.ChatInputMoreDataSource dataSource = TUIChatConfigClassic.getChatInputMoreDataSource();
+        if (dataSource != null) {
+            excludeItems.addAll(dataSource.inputBarShouldHideItemsInMoreMenuOfInfo(mChatInfo));
+            mInputMoreActionList.addAll(dataSource.inputBarShouldAddNewItemToMoreMenuOfInfo(mChatInfo));
+        }
+
+        InputMoreItem actionUnit;
+        if (TUIChatConfigClassic.isShowInputBarAlbum()
+                && getChatInfo().isEnableAlbum()
+                && !excludeItems.contains(TUIChatConfigClassic.ALBUM)) {
+            actionUnit = new InputMoreItem() {
                 @Override
                 public void onAction(String chatInfoId, int chatType) {
                     startSendPhoto();
@@ -1262,11 +1042,13 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
             mInputMoreActionList.add(actionUnit);
         }
 
-        if (!mCaptureDisable) {
-            actionUnit = new InputMoreActionUnit() {
+        if (TUIChatConfigClassic.isShowInputBarTakePhoto()
+                && getChatInfo().isEnableTakePhoto()
+                && !excludeItems.contains(TUIChatConfigClassic.TAKE_PHOTO)) {
+            actionUnit = new InputMoreItem() {
                 @Override
                 public void onAction(String chatInfoId, int chatType) {
-                    startCaptureCheckPermission();
+                    takePhoto();
                 }
             };
             actionUnit.setIconResId(R.drawable.ic_more_camera);
@@ -1275,11 +1057,13 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
             mInputMoreActionList.add(actionUnit);
         }
 
-        if (!mVideoRecordDisable) {
-            actionUnit = new InputMoreActionUnit() {
+        if (TUIChatConfigClassic.isShowInputBarRecordVideo()
+                && getChatInfo().isEnableRecordVideo()
+                && !excludeItems.contains(TUIChatConfigClassic.RECORD_VIDEO)) {
+            actionUnit = new InputMoreItem() {
                 @Override
                 public void onAction(String chatInfoId, int chatType) {
-                    startVideoRecordCheckPermission();
+                    recordVideo();
                 }
             };
             actionUnit.setIconResId(R.drawable.ic_more_video);
@@ -1288,8 +1072,10 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
             mInputMoreActionList.add(actionUnit);
         }
 
-        if (!mSendFileDisable) {
-            actionUnit = new InputMoreActionUnit() {
+        if (TUIChatConfigClassic.isShowInputBarFile()
+                && getChatInfo().isEnableFile()
+                && !excludeItems.contains(TUIChatConfigClassic.FILE)) {
+            actionUnit = new InputMoreItem() {
                 @Override
                 public void onAction(String chatInfoId, int chatType) {
                     startSendFile();
@@ -1301,16 +1087,36 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
             mInputMoreActionList.add(actionUnit);
         }
 
-        List<InputMoreActionUnit> extensionList = getExtensionInputMoreList();
-        mInputMoreActionList.addAll(extensionList);
-        clearCustomActionList();
-        if (mChatLayout != null) {
-            mChatLayout.customizeInputMoreLayout();
+        // Add a welcome prompt with rich text
+        if (TUIChatConfigClassic.isShowInputBarCustom()
+                && getChatInfo().isEnableCustomHelloMessage()
+                && !excludeItems.contains(TUIChatConfigClassic.CUSTOM)) {
+            actionUnit = new InputMoreItem() {};
+            actionUnit.setIconResId(R.drawable.custom);
+            actionUnit.setName(getResources().getString(R.string.test_custom_action));
+            actionUnit.setActionId(CustomHelloMessage.CUSTOM_HELLO_ACTION_ID);
+            actionUnit.setPriority(10);
+            actionUnit.setOnClickListener(actionUnit.new OnActionClickListener() {
+                @Override
+                public void onClick() {
+                    Gson gson = new Gson();
+                    CustomHelloMessage customHelloMessage = new CustomHelloMessage();
+                    customHelloMessage.version = TUIChatConstants.version;
+
+                    String data = gson.toJson(customHelloMessage);
+                    TUIMessageBean info = ChatMessageBuilder.buildCustomMessage(data, customHelloMessage.text, customHelloMessage.text.getBytes());
+                    mChatLayout.sendMessage(info, false);
+                }
+            });
+            mInputMoreActionList.add(actionUnit);
         }
-        mInputMoreActionList.addAll(mInputMoreCustomActionList);
-        Collections.sort(mInputMoreActionList, new Comparator<InputMoreActionUnit>() {
+
+        List<InputMoreItem> extensionList = getExtensionInputMoreList();
+        mInputMoreActionList.addAll(extensionList);
+
+        Collections.sort(mInputMoreActionList, new Comparator<InputMoreItem>() {
             @Override
-            public int compare(InputMoreActionUnit o1, InputMoreActionUnit o2) {
+            public int compare(InputMoreItem o1, InputMoreItem o2) {
                 return o2.getPriority() - o1.getPriority();
             }
         });
@@ -1320,9 +1126,13 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
         return getResources().getString(stringID);
     }
 
-    private List<InputMoreActionUnit> getExtensionInputMoreList() {
-        List<InputMoreActionUnit> list = new ArrayList<>();
-
+    private List<InputMoreItem> getExtensionInputMoreList() {
+        List<InputMoreItem> list = new ArrayList<>();
+        List<Integer> excludeItems = new ArrayList<>();
+        TUIChatConfigClassic.ChatInputMoreDataSource dataSource = TUIChatConfigClassic.getChatInputMoreDataSource();
+        if (dataSource != null) {
+            excludeItems.addAll(dataSource.inputBarShouldHideItemsInMoreMenuOfInfo(mChatInfo));
+        }
         Map<String, Object> param = new HashMap<>();
         param.put(TUIConstants.TUIChat.Extension.InputMore.CONTEXT, getContext());
         if (ChatInfo.TYPE_C2C == mChatInfo.getType()) {
@@ -1336,11 +1146,18 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
             param.put(TUIConstants.TUIChat.Extension.InputMore.FILTER_ROOM, true);
         } else {
             param.put(TUIConstants.TUIChat.Extension.InputMore.FILTER_VIDEO_CALL,
-                !TUIChatConfigs.getGeneralConfig().isEnableVideoCall() || !getChatInfo().isEnableVideoCall());
+                !TUIChatConfigClassic.isShowInputBarVideoCall() || !getChatInfo().isEnableVideoCall()
+                    || excludeItems.contains(TUIChatConfigClassic.VIDEO_CALL));
             param.put(TUIConstants.TUIChat.Extension.InputMore.FILTER_VOICE_CALL,
-                !TUIChatConfigs.getGeneralConfig().isEnableAudioCall() || !getChatInfo().isEnableAudioCall());
+                !TUIChatConfigClassic.isShowInputBarAudioCall() || !getChatInfo().isEnableAudioCall()
+                    || excludeItems.contains(TUIChatConfigClassic.AUDIO_CALL));
             param.put(TUIConstants.TUIChat.Extension.InputMore.FILTER_ROOM,
-                !TUIChatConfigs.getGeneralConfig().isEnableRoomKit() || !getChatInfo().isEnableRoom());
+                !TUIChatConfigClassic.isShowInputBarRoomKit() || !getChatInfo().isEnableRoom() || excludeItems.contains(TUIChatConfigClassic.ROOM_KIT));
+            param.put(TUIConstants.TUIChat.Extension.InputMore.FILTER_GROUP_NOTE,
+                !TUIChatConfigClassic.isShowInputBarGroupNote() || !getChatInfo().isEnableGroupNote()
+                    || excludeItems.contains(TUIChatConfigClassic.GROUP_NOTE));
+            param.put(TUIConstants.TUIChat.Extension.InputMore.FILTER_POLL,
+                !TUIChatConfigClassic.isShowInputBarPoll() || !getChatInfo().isEnablePoll() || excludeItems.contains(TUIChatConfigClassic.POLL));
         }
         param.put(TUIConstants.TUIChat.Extension.InputMore.INPUT_MORE_LISTENER, chatInputMoreListener);
         List<TUIExtensionInfo> extensionList = TUICore.getExtensionList(TUIConstants.TUIChat.Extension.InputMore.CLASSIC_EXTENSION_ID, param);
@@ -1349,7 +1166,7 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
                 String name = extensionInfo.getText();
                 int icon = (int) extensionInfo.getIcon();
                 int priority = extensionInfo.getWeight();
-                InputMoreActionUnit unit = new InputMoreActionUnit() {
+                InputMoreItem unit = new InputMoreItem() {
                     @Override
                     public void onAction(String chatInfoId, int chatType) {
                         TUIExtensionEventListener extensionListener = extensionInfo.getExtensionListener();
@@ -1404,26 +1221,6 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
         mMoreInputEvent = listener;
     }
 
-    public void disableSendPhotoAction(boolean disable) {
-        mSendPhotoDisable = disable;
-    }
-
-    public void disableCaptureAction(boolean disable) {
-        mCaptureDisable = disable;
-    }
-
-    public void disableVideoRecordAction(boolean disable) {
-        mVideoRecordDisable = disable;
-    }
-
-    public void disableSendFileAction(boolean disable) {
-        mSendFileDisable = disable;
-    }
-
-    public void addAction(InputMoreActionUnit action) {
-        mInputMoreCustomActionList.add(action);
-    }
-
     public EditText getInputText() {
         return mTextInput;
     }
@@ -1449,7 +1246,7 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
         String replyMessageAbstract = previewBean.getMessageAbstract();
         String msgTypeStr = ChatMessageParser.getMsgTypeStr(previewBean.getMessageType());
         String text = previewBean.getMessageSender() + " : " + msgTypeStr + " " + replyMessageAbstract;
-        text = FaceManager.emojiJudge(text);
+        text = FaceUtil.emojiJudge(text);
         // If replying to a text message, the middle part of the file name is displayed in abbreviated form
         if (previewBean.isReplyMessage()) {
             isReplyModel = true;
@@ -1498,10 +1295,6 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
         mEmojiInputButton.setVisibility(visibility);
     }
 
-    public void clearCustomActionList() {
-        mInputMoreCustomActionList.clear();
-    }
-
     public ChatInfo getChatInfo() {
         return mChatInfo;
     }
@@ -1521,6 +1314,7 @@ public class InputView extends LinearLayout implements View.OnClickListener, Tex
         int RECORD_TOO_SHORT = 4;
         int RECORD_FAILED = 5;
         int RECORD_CONTINUE = 6;
+        int RECORD_READY_TO_CANCEL = 7;
 
         void onInputAreaClick();
 

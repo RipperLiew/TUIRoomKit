@@ -7,35 +7,50 @@
       </div>
     </div>
     <div v-if="visible" class="end-main-content">
-      <div :class="isShowLeaveRoomDialog ? 'end-dialog-leave':'end-dialog-dismiss'">
+      <div class="end-dialog-dismiss">
         <div v-if="currentDialogType === DialogType.BasicDialog">
           <div v-if="roomStore.isMaster" class="end-dialog-header">
             <span v-if="roomStore.isMaster" class="end-dialog-text">
-              <!-- eslint-disable-next-line max-len -->
-              {{ t('If you do not want to end the meeting, please designate a new host before leaving the meeting.') }}
+              {{
+                t(
+                  'If you do not want to end the meeting, please designate a new host before leaving the meeting.'
+                )
+              }}
             </span>
-            <span v-else>{{ t('Are you sure you want to leave this room?') }}</span>
+            <span v-else>{{
+              t('Are you sure you want to leave this room?')
+            }}</span>
           </div>
         </div>
-        <div v-if="currentDialogType === DialogType.BasicDialog" class="dialog-middle-content">
+        <div
+          v-if="currentDialogType === DialogType.BasicDialog"
+          class="dialog-middle-content"
+        >
           <span
             v-if="roomStore.isMaster"
-            :class="isShowLeaveRoomDialog ? 'end-button-dismiss':'end-button-dismiss-single'"
+            class="end-button-dismiss"
             @click.stop="dismissRoom"
           >
             {{ t('Dismiss') }}
           </span>
           <span
-            v-if="isShowLeaveRoomDialog"
             @tap="handleEndLeaveClick"
-            :class="roomStore.isMaster ?'end-button-leave':'end-button-leave-single'"
+            :class="
+              roomStore.isMaster
+                ? 'end-button-leave'
+                : 'end-button-leave-single'
+            "
           >
             {{ t('Leave') }}
           </span>
-          <span class="end-button-cancel" @click.stop="cancel">{{ t('Cancel') }}</span>
+          <span class="end-button-cancel" @click.stop="cancel">{{
+            t('Cancel')
+          }}</span>
         </div>
         <div v-if="currentDialogType === DialogType.TransferDialog">
-          <span class="end-button-cancel" @click.stop="cancel">{{ t('Cancel') }}</span>
+          <span class="end-button-cancel" @click.stop="cancel">{{
+            t('Cancel')
+          }}</span>
         </div>
       </div>
     </div>
@@ -45,18 +60,18 @@
       class="transfer-container"
     >
       <template #sidebarContent>
-        <div style="height:100%">
+        <div style="height: 100%">
           <div class="transfer-list-container">
             <div class="transfer-header">
               <div class="search-container">
-                <svg-icon style="display: flex" :icon="SearchIcon"></svg-icon>
+                <svg-icon style="display: flex" :icon="SearchIcon" />
                 <input
                   v-model="searchName"
                   type="text"
                   class="searching-input"
                   :placeholder="t('Search for conference attendees')"
                   enterkeyhint="done"
-                >
+                />
               </div>
             </div>
             <div class="transfer-body">
@@ -67,18 +82,21 @@
                 @click="handleShowMemberControl(user.userId)"
               >
                 <div class="member-basic-info">
-                  <Avatar class="avatar-url" :img-src="user.avatarUrl"></Avatar>
-                  <div class="user-name">{{ user.userName || user.userId }}</div>
+                  <Avatar class="avatar-url" :img-src="user.avatarUrl" />
+                  <div class="user-name">
+                    {{ roomService.getDisplayName(user) }}
+                  </div>
                   <svg-icon
                     style="display: flex"
                     v-if="selectedUser === user.userId"
                     :icon="CorrectIcon"
                     class="correct"
-                  >
-                  </svg-icon>
+                  />
                 </div>
               </div>
-              <div v-if="hasNoData" class="member-hasNoData">{{ t('No relevant user found.') }}</div>
+              <div v-if="hasNoData" class="member-has-no-data">
+                {{ t('No relevant user found.') }}
+              </div>
             </div>
           </div>
         </div>
@@ -93,8 +111,7 @@
 </template>
 
 <script setup lang="ts">
-import { onUnmounted } from 'vue';
-import { TUIRoomEngine, TUIRole, TUIRoomEvents } from '@tencentcloud/tuiroom-engine-wx';
+import { TUIRole } from '@tencentcloud/tuiroom-engine-wx';
 import useEndControl from './useEndControlHooks';
 import logger from '../../../utils/common/logger';
 import popup from '../../common/base/PopUpH5.vue';
@@ -103,23 +120,18 @@ import CorrectIcon from '../../../assets/icons/CorrectIcon.svg';
 import SearchIcon from '../../../assets/icons/SearchIcon.svg';
 import Avatar from '../../common/Avatar.vue';
 import EndRoomIcon from '../../../assets/icons/EndRoomIcon.svg';
-import TUIMessage from '../../common/base/Message/index';
-import TUIMessageBox from '../../common/base/MessageBox/index';
+import { roomService } from '../../../services';
 
 const {
   t,
-  isShowLeaveRoomDialog,
   roomStore,
-  basicStore,
   roomEngine,
-  localUser,
   stopMeeting,
   cancel,
   DialogType,
   logPrefix,
   currentDialogType,
   visible,
-  closeMediaBeforeLeave,
   resetState,
   toggleMangeMemberSidebar,
   searchName,
@@ -128,24 +140,25 @@ const {
   filteredList,
   selectedUser,
   showSideBar,
-  remoteAnchorList,
-  isMasterWithOneRemoteAnchor,
-  isMasterWithRemoteAnchors,
+  remoteEnteredUserList,
+  isMasterWithOneRemoteUser,
+  isMasterWithRemoteUser,
 } = useEndControl();
 
-
-const emit = defineEmits(['on-exit-room', 'on-destroy-room']);
 function handleEndBtnClick() {
   stopMeeting();
 }
 function handleEndLeaveClick() {
-  if (!roomStore.isMaster) {
+  if (
+    !roomStore.isMaster ||
+    (roomStore.isMaster && remoteEnteredUserList.value.length === 0)
+  ) {
     leaveRoom();
     return;
   }
-  if (isMasterWithRemoteAnchors.value) {
-    selectedUser.value = remoteAnchorList.value[0].userId;
-    if (isMasterWithOneRemoteAnchor.value) {
+  if (isMasterWithRemoteUser.value) {
+    selectedUser.value = remoteEnteredUserList.value[0].userId;
+    if (isMasterWithOneRemoteUser.value) {
       transferAndLeave();
       return;
     }
@@ -158,16 +171,12 @@ function handleEndLeaveClick() {
 
 /**
  * Active room dismissal
- *
- * 主动解散房间
-**/
+ **/
 async function dismissRoom() {
   try {
     logger.log(`${logPrefix}dismissRoom: enter`);
-    closeMediaBeforeLeave();
-    await roomEngine.instance?.destroyRoom();
     resetState();
-    emit('on-destroy-room', { code: 0, message: '' });
+    await roomService.dismissRoom();
   } catch (error) {
     logger.error(`${logPrefix}dismissRoom error:`, error);
   }
@@ -175,16 +184,12 @@ async function dismissRoom() {
 
 /**
  * Leave the room voluntarily
- *
- * 主动离开房间
-**/
-async function leaveRoom() { // eslint-disable-line
+ **/
+async function leaveRoom() {
+  // eslint-disable-line
   try {
-    closeMediaBeforeLeave();
-    const response = await roomEngine.instance?.exitRoom();
-    logger.log(`${logPrefix}leaveRoom:`, response);
     resetState();
-    emit('on-exit-room', { code: 0, message: '' });
+    await roomService.leaveRoom();
   } catch (error) {
     logger.error(`${logPrefix}leaveRoom error:`, error);
   }
@@ -196,355 +201,293 @@ async function transferAndLeave() {
   }
   try {
     const userId = selectedUser.value;
-    const changeUserRoleResponse = await roomEngine.instance?.changeUserRole({ userId, userRole: TUIRole.kRoomOwner });
+    const changeUserRoleResponse = await roomEngine.instance?.changeUserRole({
+      userId,
+      userRole: TUIRole.kRoomOwner,
+    });
     logger.log(`${logPrefix}transferAndLeave:`, changeUserRoleResponse);
-    closeMediaBeforeLeave();
-    const exitRoomResponse = await roomEngine.instance?.exitRoom();
-    logger.log(`${logPrefix}exitRoom:`, exitRoomResponse);
-    basicStore.setSidebarOpenStatus(false);
-    basicStore.setSidebarName('');
     resetState();
-    emit('on-exit-room', { code: 0, message: '' });
+    await roomService.leaveRoom();
   } catch (error) {
     logger.error(`${logPrefix}transferAndLeave error:`, error);
   }
 }
-
-/**
- * notification of room dismissal from the host
- *
- * 收到主持人解散房间通知
-**/
-const onRoomDismissed = async (eventInfo: { roomId: string}) => {
-  try {
-    const { roomId } = eventInfo;
-    logger.log(`${logPrefix}onRoomDismissed:`, roomId);
-    TUIMessageBox({
-      title: t('Note'),
-      message: t('The host closed the room.'),
-      appendToRoomContainer: true,
-      confirmButtonText: t('Sure'),
-      callback: async () => {
-        resetState();
-        emit('on-destroy-room', { code: 0, message: '' });
-      },
-    });
-  } catch (error) {
-    logger.error(`${logPrefix}onRoomDestroyed error:`, error);
-  }
-};
-
-/**
- * By listening for a change in ownerId,
- * the audience receives a notification that the host has handed over the privileges
- *
-**/
-
-const onUserRoleChanged = async (eventInfo: {userId: string, userRole: TUIRole }) => {
-  const { userId, userRole } = eventInfo;
-  if (roomStore.localUser.userId === userId) {
-    roomStore.setLocalUser({ userRole });
-    if (eventInfo.userRole === TUIRole.kGeneralUser) {
-      if (roomStore?.isCameraDisableForAllUser && !roomStore.localStream.hasAudioStream) {
-        roomStore.setCanControlSelfAudio(false);
-      }
-      if (roomStore?.isMicrophoneDisableForAllUser && !roomStore.localStream.hasVideoStream) {
-        roomStore.setCanControlSelfVideo(false);
-      }
-    } else if (eventInfo.userRole === TUIRole.kAdministrator) {
-      TUIMessage({
-        type: 'success',
-        message: t('You are now an administrator'),
-      });
-      roomStore.setCanControlSelfAudio(true);
-      roomStore.setCanControlSelfVideo(true);
-    }
-  } else {
-    roomStore.setRemoteUserRole(userId, userRole);
-  }
-  if (eventInfo.userRole === TUIRole.kRoomOwner) {
-    let newName = roomStore.getUserName(userId) || userId;
-    if (userId === localUser.value.userId) {
-      newName = t('me');
-    }
-    const tipMessage = `${t('Moderator changed to ')}${newName}`;
-    TUIMessage({
-      type: 'success',
-      message: tipMessage,
-    });
-    roomStore.setMasterUserId(userId);
-    resetState();
-    if (roomStore.isAnchor) return;
-    if (roomStore.localUser.userId === userId && roomStore.isSpeakAfterTakingSeatMode) {
-      await roomEngine.instance?.takeSeat({ seatIndex: -1, timeout: 0 });
-    }
-  }
-};
-
-TUIRoomEngine.once('ready', () => {
-  roomEngine.instance?.on(TUIRoomEvents.onRoomDismissed, onRoomDismissed);
-  roomEngine.instance?.on(TUIRoomEvents.onUserRoleChanged, onUserRoleChanged);
-});
-
-onUnmounted(() => {
-  roomEngine.instance?.off(TUIRoomEvents.onRoomDismissed, onRoomDismissed);
-  roomEngine.instance?.off(TUIRoomEvents.onUserRoleChanged, onUserRoleChanged);
-});
-
 </script>
 <style lang="scss" scoped>
-.end-control-container{
+.end-control-container {
   .end-button {
-    font-weight: 400;
+    display: flex;
     font-size: 12px;
-    color: #FF2E2E;
+    font-weight: 400;
+    line-height: 21px;
+    text-align: center;
     letter-spacing: 0;
     cursor: pointer;
-    text-align: center;
-    line-height: 21px;
-    display: flex;
+    color: var(--text-color-error);
+
     .end-button-title {
       margin-left: 3px;
+      white-space: nowrap;
     }
   }
 }
-.dialog-middle-content{
-  width: 100%;
+
+.dialog-middle-content {
   display: flex;
   flex-direction: column;
+  width: 100%;
 }
-.end-main-content{
+
+.end-main-content {
   position: fixed;
-  left: 0;
   top: 0;
   bottom: 0;
+  left: 0;
+  box-sizing: border-box;
   width: 100vw;
   height: auto;
-  box-sizing: border-box;
-  background-color: var(--log-out-mobile);
-  backdrop-filter: blur(10px);
-  .end-dialog-leave,.end-dialog-dismiss {
-    width: 90%;
-    border-radius: 14px;
+  background-color: var(--uikit-color-black-3);
+
+  .end-dialog-leave,
+  .end-dialog-dismiss {
     position: fixed;
     right: 0;
-    left: 0;
     bottom: 10vh;
+    left: 0;
     z-index: 9;
+    width: 90%;
     margin: auto;
-    .manage-transfer{
+    border-radius: 14px;
+
+    .manage-transfer {
       position: absolute;
       top: 0;
     }
+
     .end-dialog-header {
-      background: #CACACB;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 56px;
+      margin: 0 auto;
       font-family: 'PingFang SC';
+      font-size: 14px;
       font-style: normal;
       font-weight: 500;
-      font-size: 14px;
       line-height: 17px;
       text-align: center;
-      color: #6a6c74;
-      height: 56px;
-      width: 100%;
-      margin: 0 auto;
       border-top-left-radius: 14px;
       border-top-right-radius: 14px;
-      border-bottom: .5px solid #4f4e4e;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      background-color: var(--bg-color-operate);
+      color: var(--text-color-secondary);
+      border-bottom: 0.5px solid var(--stroke-color-primary);
+
       .end-dialog-text {
         width: 230px;
       }
     }
-    .end-button-dismiss,.end-button-leave,.end-button-cancel,.end-button-dismiss-single,.end-button-leave-single {
+
+    .end-button-dismiss,
+    .end-button-leave,
+    .end-button-cancel,
+    .end-button-leave-single {
       width: 100%;
+      padding: 20px 0;
       font-family: 'PingFang SC';
+      font-size: 20px;
       font-style: normal;
       font-weight: 400;
-      font-size: 20px;
       line-height: 24px;
       text-align: center;
-      color: #FF2E2E;
       border-style: none;
-      background: #CACACB;
-      padding: 20px 0;
+      background-color: var(--bg-color-operate);
+      color: var(--text-color-error);
     }
+
     .end-button-leave {
-      color: #007AFF;
-      border-bottom-left-radius: 14px;
       border-bottom-right-radius: 14px;
-      border-top: .5px solid #8f8e8e;
+      border-bottom-left-radius: 14px;
+      border-top: 0.5px solid var(--stroke-color-module);
+      color: var(--text-color-link);
     }
-    .end-button-leave-single{
+
+    .end-button-leave-single {
       position: absolute;
       bottom: 1vh;
-      border-radius: 14px;
       display: flex;
       align-items: center;
       justify-content: center;
+      border-radius: 14px;
     }
+
     .end-button-cancel {
       position: absolute;
       bottom: -9vh;
       left: 0;
-      background-color: #FFFFFF;
-      border-radius: 14px;
-      color: #007AFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       font-weight: 600;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .end-button-dismiss-single {
-      border-bottom-left-radius: 14px;
-      border-bottom-right-radius: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      border-radius: 14px;
+      color: var(--text-color-link);
     }
   }
+
   .end-dialog-dismiss {
     bottom: 12vh;
-    .end-button-cancel{
+
+    .end-button-cancel {
       bottom: -9vh;
     }
   }
 }
+
 .transfer-container {
   position: fixed;
-  left: 0;
   top: 0;
-  height: 100vh;
+  left: 0;
   z-index: 102;
-  .transfer-list-container{
+  height: 100vh;
+
+  .transfer-list-container {
     position: relative;
-    height: 100%;
     display: flex;
     flex-direction: column;
+    height: 100%;
   }
+
   .transfer-header {
     display: flex;
     justify-content: center;
     padding: 0 16px;
+
     .search-container {
-      height: 34px;
-      border-radius: 8px;
-      background-color: var(--transfer-input-color-h5);
       display: flex;
-      padding: 0 16px;
-      color: #676c80;
-      caret-color: var(--caret-color);
       flex: 1;
       align-items: center;
+      height: 34px;
+      padding: 0 16px;
+      border-radius: 8px;
+      background-color: var(--bg-color-input);
+      color: var(--text-color-secondary);
+
       .searching-input {
-        outline: none;
-        border: none;
-        background: none;
         width: 100%;
-      ::placeholder {
-        font-size: 16px;
-        line-height: 18px;
-        color: #676c80;
-      }
-      &:focus-visible {
+        background: none;
+        border: none;
         outline: none;
+
+        ::placeholder {
+          font-size: 16px;
+          line-height: 18px;
+          color: var(--uikit-color-gray-7);
+        }
+
+        &:focus-visible {
+          outline: none;
+        }
       }
-    }
     }
   }
+
   .transfer-body {
-    overflow-y: scroll;
-    flex: 1;
     display: flex;
+    flex: 1;
     flex-direction: column;
     min-height: 0;
     margin-top: 20px;
-    .transfer-list-content{
+    overflow-y: scroll;
+
+    .transfer-list-content {
       padding-bottom: 5px;
-    .transfer-item-container {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      height: 69px;
-      justify-content: space-between;
-      padding: 0 32px;
-    }
-    .member-basic-info {
-      display: flex;
-      position: relative;
-      width: 100%;
-      flex-direction: row;
-      align-items: center;
-      padding: 24px 20px 0 24px;
+
+      .transfer-item-container {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        height: 69px;
+        padding: 0 32px;
+      }
+
+      .member-basic-info {
+        position: relative;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        width: 100%;
+        padding: 24px 20px 0 24px;
+
         .avatar-url {
           width: 40px !important;
           height: 40px !important;
           border-radius: 50%;
         }
+
         .user-name {
-          margin-left: 9px;
-          color: var(--input-font-color);
+          display: flex;
           max-width: 70% !important;
-          white-space: nowrap;
-          text-overflow: ellipsis;
+          margin-left: 9px;
           overflow: hidden;
           font-family: 'PingFang SC';
-          font-style: normal;
-          font-weight: 500;
           font-size: 16px !important;
+          font-style: normal;
           line-height: 22px;
+          text-overflow: ellipsis;
           letter-spacing: -0.24px;
-          display: flex;
+          white-space: nowrap;
+          color: var(--text-color-primary);
         }
+
         .correct {
-          width: 24px;
-          height: 16px;
           position: absolute;
           right: 5vw;
+          width: 24px;
+          height: 16px;
           background-size: cover;
         }
       }
     }
-    .member-hasNoData{
+
+    .member-has-no-data {
       position: fixed;
       top: 30%;
       left: 30%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       width: 40vw;
       height: 5vh;
-      color: var(--input-font-color);
       border-radius: 4px;
-      background-color: var(--message-list-color);
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      color: var(--text-color-secondary);
     }
   }
 }
-.transfer-leave{
+
+.transfer-leave {
   position: fixed;
   bottom: 2vh;
   left: 7vw;
   display: flex;
   align-items: center;
   justify-content: center;
-  .transfer-button{
-    width: 86vw;
-    height: 5vh;
-    background: linear-gradient(315deg, #006EFF 0%, #0C59F2 98.81%);
-    border-radius: 8px;
-    font-family: 'PingFang SC';
-    font-style: normal;
-    font-weight: 500;
-    font-size: 16px;
-    line-height: 22px;
+
+  .transfer-button {
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 86vw;
+    height: 5vh;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: 22px;
     text-align: center;
-    color: #FFFFFF;
     border-style: none;
+    border-radius: 8px;
+    background-color: var(--button-color-primary-default);
+    color: var(--text-color-primary);
   }
 }
 </style>

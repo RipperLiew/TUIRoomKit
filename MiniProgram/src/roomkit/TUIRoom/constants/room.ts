@@ -1,8 +1,8 @@
 import { TRTCVideoResolution } from '@tencentcloud/tuiroom-engine-wx';
 
 export enum SpeechMode {
-  FREE_SPEECH = 'FreeSpeech', // 自由发言模式
-  APPLY_SPEECH = 'ApplySpeech', // 申请发言模式
+  FREE_SPEECH = 'FreeSpeech',
+  APPLY_SPEECH = 'ApplySpeech',
 }
 
 export enum IconButtonLayout {
@@ -22,3 +22,17 @@ export const SMALL_VIDEO_ENC_PARAM = {
   videoFps: 15,
   videoBitrate: 800,
 };
+
+export enum USERS_STATUS {
+  Entered = 1,
+  ON_STAGE = 1,
+  NOT_ON_STAGE = 2,
+  NOT_ENTER = 3,
+}
+
+export const PASSWORD_MAX_LENGTH_LIMIT = 6;
+
+export enum TRTCBeautyStyle {
+  TRTCBeautyStyleSmooth = 0,
+  TRTCBeautyStyleNature = 1,
+}

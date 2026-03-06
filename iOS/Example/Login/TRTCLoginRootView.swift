@@ -22,13 +22,16 @@ class TRTCLoginRootView: UIView {
         return imageView
     }()
     
-    lazy var phoneNumTextField: UITextField = {
-
+    lazy var textLable: UILabel = {
         let label = UILabel()
-        label.text = "用户名"
+        label.text = .useNameText
+        label.font = UIFont(name: "PingFangSC-Regular", size: 16)
+        label.adjustsFontSizeToFitWidth = true
+        return label
+    }()
+    
+    lazy var phoneNumTextField: UITextField = {
         let textField = createTextField(.phoneNumPlaceholderText)
-        textField.leftView = label
-        textField.leftViewMode = .always
         return textField
     }()
     
@@ -65,7 +68,7 @@ class TRTCLoginRootView: UIView {
     }
     
     private func createTextField(_ placeholder: String) -> UITextField {
-        let textField = CustomTextField(frame: .zero)
+        let textField = UITextField(frame: .zero)
         textField.backgroundColor = .white
         textField.font = UIFont(name: "PingFangSC-Regular", size: 16)
         textField.textColor = UIColor.tui_color(withHex: "333333")
@@ -141,13 +144,14 @@ class TRTCLoginRootView: UIView {
             return
         }
         isViewReady = true
-        constructViewHierarchy() // 视图层级布局
-        activateConstraints() // 生成约束（此时有可能拿不到父视图正确的frame）
+        constructViewHierarchy()
+        activateConstraints()
         bindInteraction()
     }
     
     func constructViewHierarchy() {
         addSubview(contentView)
+        contentView.addSubview(textLable)
         contentView.addSubview(phoneNumTextField)
         contentView.addSubview(phoneNumBottomLine)
         contentView.addSubview(loginBtn)
@@ -158,18 +162,23 @@ class TRTCLoginRootView: UIView {
             make.top.equalToSuperview()
             make.leading.trailing.bottom.equalToSuperview()
         }
-        phoneNumTextField.snp.makeConstraints { (make) in
+        textLable.snp.makeConstraints { (make) in
             make.top.equalToSuperview().offset(convertPixel(h: 300))
             make.leading.equalToSuperview().offset(convertPixel(w: 40))
+            make.height.equalTo(convertPixel(h: 57))
+            make.width.equalTo(convertPixel(w: 70))
+        }
+        phoneNumTextField.snp.makeConstraints { (make) in
+            make.top.equalTo(textLable)
+            make.leading.equalTo(textLable.snp.trailing).offset(convertPixel(w: 5))
             make.trailing.equalToSuperview().offset(-convertPixel(w: 40))
             make.height.equalTo(convertPixel(h: 57))
         }
-        
         phoneNumBottomLine.snp.makeConstraints { (make) in
-            make.bottom.leading.trailing.equalTo(phoneNumTextField)
+            make.bottom.trailing.equalTo(phoneNumTextField)
+            make.leading.equalTo(textLable)
             make.height.equalTo(convertPixel(h: 1))
         }
-        
         loginBtn.snp.makeConstraints { (make) in
             make.top.equalTo(phoneNumBottomLine.snp.bottom).offset(convertPixel(h: 50))
             make.leading.equalToSuperview().offset(convertPixel(w: 20))
@@ -279,9 +288,10 @@ extension TRTCLoginRootView: UITextFieldDelegate {
 
 /// MARK: - internationalization string
 fileprivate extension String {
-    static let titleText = LoginLocalize(key: "Demo.TRTC.Login.welcome")
-    static let phoneNumPlaceholderText = LoginLocalize(key:"V2.Live.LinkMicNew.enterphonenumber")
-    static let verifyCodePlaceholderText = LoginLocalize(key:"V2.Live.LinkMicNew.enterverificationcode")
-    static let getVerifyCodeText = LoginLocalize(key:"V2.Live.LinkMicNew.getverificationcode")
-    static let loginText = LoginLocalize(key:"V2.Live.LoginMock.login")
+    static let titleText = LoginLocalize(key: "Welcome to Tencent Real-Time Communication")
+    static let phoneNumPlaceholderText = LoginLocalize(key:"Enter a User Id")
+    static let verifyCodePlaceholderText = LoginLocalize(key:"Enter a verification code")
+    static let getVerifyCodeText = LoginLocalize(key:"Get")
+    static let loginText = LoginLocalize(key:"Log In")
+    static let useNameText = LoginLocalize(key: "User Name")
 }
